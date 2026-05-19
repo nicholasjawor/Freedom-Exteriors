@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "./supabase";
+
 
 // ── Brand ─────────────────────────────────────────────────────────
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
@@ -270,7 +270,7 @@ const blank = () => ({
 });
 
 // ── Logo ──────────────────────────────────────────────────────────
-function Logo() { return null; }
+
 
 // ── Main App ──────────────────────────────────────────────────────
 export default function Pipeline({ session }) {
