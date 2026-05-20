@@ -246,7 +246,7 @@ General Contractor License #IR813877 | Phone: (651) 283-1689`
 
 // ── Storage ────────────────────────────────────────────────────────
 const SK = "freedom-ext-v3";
-async function loadJobs(userEmail) {
+async function loadJobs() {
   try {
     const { data, error } = await supabase
       .from("jobs")
@@ -259,7 +259,7 @@ async function loadJobs(userEmail) {
   try { const r = await window.storage.get(SK); if (r?.value) { const p = JSON.parse(r.value); return p.length ? p : SEED; } } catch(_) {}
   return SEED;
 }
-async function persistJobs(jobs, userEmail) {
+async function persistJobs(jobs) {
   try {
     await supabase.from("jobs").delete().eq("user_email", "all");
     if (jobs.length) {
