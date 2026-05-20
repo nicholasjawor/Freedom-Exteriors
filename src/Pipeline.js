@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 
-
 // ── Brand ─────────────────────────────────────────────────────────
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -16,6 +15,8 @@ const STAGES = [
   { id: "installed",  label: "Installed",   color: TEAL,      icon: "🔨" },
   { id: "collected",  label: "Collected",   color: "#10b981", icon: "💰" },
 ];
+const ADMIN_EMAIL = "nicholasjawor@gmail.com";
+const USERS = ["Nick", "Victor"];
 const JOB_TYPES = ["Roof","Siding","Windows","Roof + Siding","Siding + Windows","Full Exterior"];
 const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual","American Family","Auto-Owners","USAA","Other","None / OOP"];
 const STATES = ["MN","WI"];
@@ -309,12 +310,18 @@ export default function Pipeline({ session }) {
   const followUps = jobs.filter(j => j.followUp);
   const stageObj = id => STAGES.find(s => s.id === id) || STAGES[0];
 
-  const filtered = jobs.filter(j => {
-    if (filterStage !== "all" && j.stage !== filterStage) return false;
-    if (filterState !== "all" && j.state !== filterState) return false;
-    return true;
-  });
+  const userEmail = session?.user?.email;
+const isAdmin = userEmail === ADMIN_EMAIL;
+const userName = userEmail === "nick@freedom-exteriors.com" ? "Nick"
+               : userEmail === "victor@freedom-exteriors.com" ? "Victor"
+               : null;
 
+const filtered = jobs.filter(j => {
+  if (!isAdmin && userName && j.assigned !== userName) return false;
+  if (filterStage !== "all" && j.stage !== filterStage) return false;
+  if (filterState !== "all" && j.state !== filterState) return false;
+  return true;
+});
   const openNew = () => { setForm(blank()); setEditing(false); setShowForm(true); setSelected(null); };
   const openEdit = (job) => { setForm({...job}); setEditing(true); setShowForm(true); setSelected(null); };
 
@@ -928,7 +935,7 @@ export default function Pipeline({ session }) {
             <Sec title="Hover & Assignment">
               <G2>
                 <F label="Hover Job ID" value={form.hoverId} onChange={v => setForm(p=>({...p,hoverId:v}))} placeholder="e.g. 1234567"/>
-                <F label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))}/>
+              <Sel label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))} options={USERS}/>
               </G2>
               {form.hoverId && <a href={`https://hover.to/jobs/${form.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontSize:12, fontWeight:700, textDecoration:"none" }}>Open in Hover ↗</a>}
             </Sec>
