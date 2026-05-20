@@ -246,11 +246,30 @@ General Contractor License #IR813877 | Phone: (651) 283-1689`
 
 // ── Storage ────────────────────────────────────────────────────────
 const SK = "freedom-ext-v3";
-async function loadJobs() {
+async function loadJobs(userEmail) {
+  try {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("user_email", "all");
+    if (!error && data?.length) {
+      return data.map(r => r.data);
+    }
+  } catch(_) {}
   try { const r = await window.storage.get(SK); if (r?.value) { const p = JSON.parse(r.value); return p.length ? p : SEED; } } catch(_) {}
   return SEED;
 }
-async function persistJobs(jobs) { try { await window.storage.set(SK, JSON.stringify(jobs)); } catch(e) { console.warn(e); } }
+async function persistJobs(jobs, userEmail) {
+  try {
+    await supabase.from("jobs").delete().eq("user_email", "all");
+    if (jobs.length) {
+      await supabase.from("jobs").insert(
+        jobs.map(j => ({ user_email: "all", data: j }))
+      );
+    }
+  } catch(e) { console.warn(e); }
+  try { await window.storage.set(SK, JSON.stringify(jobs)); } catch(_) {}
+}
 
 const SEED = [
   { id:1, name:"Mike Harrington", address:"412 Elm St", city:"Blaine", state:"MN", phone:"612-555-0182", type:"Roof", stage:"approved", claimNum:"CLM-2026-8821", insurer:"State Farm", adjuster:"Sarah Cole", adjPhone:"651-555-0291", hoverId:"", notes:"Supplement pending for decking. Drip edge not included.", followUp:true, assigned:"Me", added:"2026-05-01", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
@@ -290,11 +309,11 @@ export default function Pipeline({ session }) {
   const [contractPreview, setContractPreview] = useState(null);
   const [abcFilter, setAbcFilter] = useState("All");
 
-  useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, []);
+  useEffect(() => { loadJobs(session?.user?.email).then(d => { setJobs(d); setLoading(false); }); }, []);
 
   const save = useCallback(async (next) => {
     setSaveStatus("saving");
-    try { await persistJobs(next); setSaveStatus("saved"); }
+    try { await persistJobs(next, session?.user?.email); setSaveStatus("saved"); }
     catch { setSaveStatus("error"); }
   }, []);
 
