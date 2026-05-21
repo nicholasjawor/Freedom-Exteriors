@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
-// ── Brand ─────────────────────────────────────────────────────────
+/* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
 const TEXT = "#e2eaf4"; const MUTED = "#6b8099";
@@ -309,7 +309,7 @@ export default function Pipeline({ session }) {
   const [contractPreview, setContractPreview] = useState(null);
   const [abcFilter, setAbcFilter] = useState("All");
 
-  useEffect(() => { loadJobs(session?.user?.email).then(d => { setJobs(d); setLoading(false); }); }, []);
+  useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, [session?.user?.email]); // eslint-disable-line
 
   const save = useCallback(async (next) => {
     setSaveStatus("saving");
