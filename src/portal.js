@@ -23,7 +23,7 @@ export default function Portal({ token }) {
   const [msgSent, setMsgSent] = useState(false);
   const [signature, setSignature] = useState("");
   const [sigSaved, setSigSaved] = useState(false);
-  const [photos, setPhotos] = useState([]);
+  const [, setPhotos] = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
