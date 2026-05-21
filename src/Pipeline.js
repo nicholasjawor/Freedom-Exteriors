@@ -633,7 +633,7 @@ const filtered = jobs.filter(j => {
                   <div>
                     <label style={{ fontSize:9, color:MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>Commission Tier</label>
                     <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-                      {[40,50,60].map(t => (
+                      {[30,40,50].map(t => (
                         <button key={t} onClick={() => updateJob(job.id, { commission: { ...c, tier: t } })} style={{ flex:1, background:c.tier===t?GOLD+"22":"none", border:`1px solid ${c.tier===t?GOLD:BORDER}`, color:c.tier===t?GOLD:MUTED, borderRadius:5, padding:"5px 0", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t}%</button>
                       ))}
                     </div>
