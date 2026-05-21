@@ -719,7 +719,14 @@ const filtered = jobs.filter(j => {
                   </div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                     <button onClick={() => toggleFollowUp(selected.id)} style={{ background:selected.followUp?GOLD+"22":PANEL2, border:`1px solid ${selected.followUp?GOLD:BORDER}`, color:selected.followUp?GOLD:MUTED, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:600 }}>{selected.followUp?"🔔 Unmark":"🔕 Mark Follow-up"}</button>
-                    <button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit Job</button>
+                    <button onClick={async () => {
+  const token = selected.id + "-" + Math.random().toString(36).slice(2,8);
+  const { data: row } = await supabase.from("jobs").select("id,data").eq("user_email","all").then(r => ({ data: r.data?.find(j => j.data?.id === selected.id) }));
+  if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id);
+  const link = `${window.location.origin}/portal/${token}`;
+  navigator.clipboard.writeText(link);
+  alert("Portal link copied! Send it to: " + selected.name);
+}} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Copy Portal Link</button><button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit Job</button>
                     <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, marginLeft:"auto" }}>Delete</button>
                   </div>
                 </div>
