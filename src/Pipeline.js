@@ -447,7 +447,7 @@ const filtered = jobs.filter(j => {
               🔔 {followUps.length} Follow-up{followUps.length!==1?"s":""}
             </button>
           )}
-          <button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:"8px 18px", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+ NEW JOB</button>
+          <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button><button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:"8px 18px", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+ NEW JOB</button>
         </div>
       </header>
 
