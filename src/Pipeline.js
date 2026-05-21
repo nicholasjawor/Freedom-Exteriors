@@ -362,8 +362,8 @@ if (isNew && form.email) {
       portalLink,
     }),
   });
-}
-
+}setShowForm(false);
+  }
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
 
   const moveStage = (job, dir) => {
