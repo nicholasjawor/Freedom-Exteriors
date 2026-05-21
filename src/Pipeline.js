@@ -346,9 +346,23 @@ const filtered = jobs.filter(j => {
 
   const saveJob = () => {
     if (!form.name.trim()) return;
-    updateJobs(prev => editing ? prev.map(j => j.id === form.id ? form : j) : [...prev, form]);
-    setShowForm(false);
-  };
+    const isNew = !editing;
+const token = form.id + "-" + Math.random().toString(36).slice(2,8);
+const jobWithToken = isNew ? { ...form, portal_token: token } : form;
+updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
+if (isNew && form.email) {
+  const portalLink = `${window.location.origin}/portal/${token}`;
+  fetch("/api/send-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: form.email,
+      homeownerName: form.name,
+      jobType: form.type,
+      portalLink,
+    }),
+  });
+}
 
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
 
