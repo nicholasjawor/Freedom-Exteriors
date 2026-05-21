@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import Login from "./Login";
 import Pipeline from "./Pipeline";
-import Portal from "./Portal";
+import Portal from "./portal";
 
 export default function App() {
   const [session, setSession] = useState(null);
