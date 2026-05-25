@@ -361,8 +361,11 @@ if (isNew && form.email) {
   body: JSON.stringify({
     from: "Freedom Exteriors <nick@freedom-exteriors.com>",
     to: [form.email],
-    subject: "Your Freedom Exteriors Job Portal is Ready",
-}setShowForm(false);html: "<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#080d14;color:#e2eaf4;border-radius:12px;\"><h1 style=\"text-align:center;letter-spacing:4px;\"><span style=\"color:#1a9e99;\">FREEDOM </span><span style=\"color:#e8a820;\">EXTERIORS</span></h1><h2 style=\"color:#e8a820;\">Hi " + form.name + "!</h2><p style=\"font-size:15px;line-height:1.6;\">Your <strong>" + form.type + "</strong> job has been created. Track your status, sign documents, upload photos and message your rep through your personal portal.</p><div style=\"text-align:center;margin:32px 0;\"><a href=\"" + portalLink + "\" style=\"background:#e8a820;color:#000;padding:14px 32px;border-radius:8px;font-weight:800;font-size:16px;text-decoration:none;\">View Your Job Portal</a></div><p style=\"color:#6b8099;font-size:13px;\">Questions? Call (651) 283-1689</p><p style=\"color:#6b8099;font-size:11px;text-align:center;\">Freedom Exteriors LLC - 1145 Summit Ave - Mahtomedi, MN 55115</p></div>",
+    subject: "Your Freedom Exteriors Job Portal is Ready"html: "<p>Hi " + form.name + "! Your " + form.type + " job portal is ready: <a href='" + portalLink + "'>View Portal</a></p>",
+  }),
+});
+setShowForm(false);
+}
   }
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
 
