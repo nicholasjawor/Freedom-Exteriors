@@ -22,8 +22,8 @@ export default function App() {
 
     // Check for QuickBooks callback params
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const realm = params.get("realm");
+    const token = params.get("qb_token");
+    const realm = params.get("qb_realm");
     if (token && realm) {
       setQbToken(token);
       setQbRealm(realm);
