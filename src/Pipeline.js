@@ -357,7 +357,7 @@ const filtered = jobs.filter(j => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + process.env.REACT_APP_RESEND_KEY,
+        "Authorization": "Bearer re_Cich2WUy_7JYsry2qANx8BwcFo8C6XmFK",
       },
       body: JSON.stringify({
         from: "Freedom Exteriors <nick@freedom-exteriors.com>",
