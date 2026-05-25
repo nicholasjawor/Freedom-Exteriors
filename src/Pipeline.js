@@ -352,16 +352,17 @@ const jobWithToken = isNew ? { ...form, portal_token: token } : form;
 updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
 if (isNew && form.email) {
   const portalLink = `${window.location.origin}/portal/${token}`;
-  fetch("/api/send-email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: form.email,
-      homeownerName: form.name,
-      jobType: form.type,
-      portalLink,
-    }),
-  });
+  fetch("https://api.resend.com/emails", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${process.env.REACT_APP_RESEND_KEY}`,
+  },
+  body: JSON.stringify({
+    from: "Freedom Exteriors <nick@freedom-exteriors.com>",
+    to: [form.email],
+    subject: "Your Freedom Exteriors Job Portal is Ready",
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#080d14;color:#e2eaf4;border-radius:12px;"><h1 style="text-align:center;letter-spacing:4px;"><span style="color:#1a9e99;">FREEDOM </span><span style="color:#e8a820;">EXTERIORS</span></h1><h2 style="color:#e8a820;">Hi ${form.name}!</h2><p style="font-size:15px;line-height:1.6;">Your <strong>${form.type}</strong> job has been created. Track your status, sign documents, upload photos and message your rep through your personal portal.</p><div style="text-align:center;margin:32px 0;"><a href="${portalLink}" style="background:#e8a820;color:#000;pa
 }setShowForm(false);
   }
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
