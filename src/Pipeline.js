@@ -344,7 +344,6 @@ const filtered = jobs.filter(j => {
   const openNew = () => { setForm(blank()); setEditing(false); setShowForm(true); setSelected(null); };
   const openEdit = (job) => { setForm({...job}); setEditing(true); setShowForm(true); setSelected(null); };
 
-  const saveJob = () => {
    const saveJob = () => {
   if (!form.name.trim()) return;
   const isNew = !editing;
