@@ -7,6 +7,8 @@ import Portal from "./portal";
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [qbToken, setQbToken] = useState(null);
+  const [qbRealm, setQbRealm] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -18,15 +20,31 @@ export default function App() {
       setSession(session);
     });
 
+    // Check for QuickBooks callback params
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const realm = params.get("realm");
+    if (token && realm) {
+      setQbToken(token);
+      setQbRealm(realm);
+      localStorage.setItem("qb_token", token);
+      localStorage.setItem("qb_realm", realm);
+      window.history.replaceState({}, "", "/");
+    } else {
+      const savedToken = localStorage.getItem("qb_token");
+      const savedRealm = localStorage.getItem("qb_realm");
+      if (savedToken && savedRealm) {
+        setQbToken(savedToken);
+        setQbRealm(savedRealm);
+      }
+    }
+
     return () => subscription.unsubscribe();
   }, []);
 
-  // Check if this is a portal link e.g. /portal/abc123
   const path = window.location.pathname;
   const portalMatch = path.match(/^\/portal\/(.+)$/);
-  if (portalMatch) {
-    return <Portal token={portalMatch[1]} />;
-  }
+  if (portalMatch) return <Portal token={portalMatch[1]} />;
 
   if (loading) return (
     <div style={{ minHeight:"100vh", background:"#080d14", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Barlow Condensed','Segoe UI',sans-serif" }}>
@@ -37,5 +55,5 @@ export default function App() {
     </div>
   );
 
-  return session ? <Pipeline session={session} /> : <Login />;
+  return session ? <Pipeline session={session} qbToken={qbToken} qbRealm={qbRealm} /> : <Login />;
 }
