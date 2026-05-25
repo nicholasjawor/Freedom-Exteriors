@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   if (action === "invoice" && req.method === "POST") {
-    const { realmId, accessToken, job } = req.body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;`n      const { realmId, accessToken, job } = body;
     try {
       const invoiceRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/invoice?minorversion=65`, {
         method: "POST",
