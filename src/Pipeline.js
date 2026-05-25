@@ -465,8 +465,8 @@ const filtered = jobs.filter(j => {
      <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QuickBooks</button>
 <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:"1px solid #1e3048", color:"#6b8099", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button>
 <button onClick={openNew} style={{ background:"#e8a820", color:"#000", border:"none", borderRadius:8, padding:"8px 18px", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+ NEW JOB</button>
-      </header>
-
+</div>
+</header>
       {/* NAV */}
       <nav style={{ background:PANEL2, borderBottom:`1px solid ${BORDER}`, padding:"0 20px", display:"flex", alignItems:"center", gap:2 }}>
         {[{id:"board",label:"📋 Board"},{id:"list",label:"📄 All Jobs"},{id:"followups",label:`🔔 Follow-ups (${followUps.length})`},{id:"commission",label:"💰 Commission"}].map(v => (
