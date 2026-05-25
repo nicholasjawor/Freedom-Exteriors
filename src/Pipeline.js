@@ -345,25 +345,31 @@ const filtered = jobs.filter(j => {
   const openEdit = (job) => { setForm({...job}); setEditing(true); setShowForm(true); setSelected(null); };
 
   const saveJob = () => {
-    if (!form.name.trim()) return;
-    const isNew = !editing;
-const token = form.id + "-" + Math.random().toString(36).slice(2,8);
-const jobWithToken = isNew ? { ...form, portal_token: token } : form;
-updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
-if (isNew && form.email) {
-  const portalLink = `${window.location.origin}/portal/${token}`;
-  fetch("https://api.resend.com/emails", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${process.env.REACT_APP_RESEND_KEY}`,
-  },
-  body: JSON.stringify({
-    from: "Freedom Exteriors <nick@freedom-exteriors.com>",
-    to: [form.email],
-    subject: "Your Freedom Exteriors Job Portal is Ready"html: "<p>Hi " + form.name + "! Your " + form.type + " job portal is ready: <a href='" + portalLink + "'>View Portal</a></p>",
-  }),
-});
+   const saveJob = () => {
+  if (!form.name.trim()) return;
+  const isNew = !editing;
+  const token = form.id + "-" + Math.random().toString(36).slice(2,8);
+  const jobWithToken = isNew ? { ...form, portal_token: token } : form;
+  updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
+  if (isNew && form.email) {
+    const portalLink = window.location.origin + "/portal/" + token;
+    const emailHtml = "<div style='font-family:Arial,sans-serif;padding:32px;background:#080d14;color:#e2eaf4'><h1 style='text-align:center'><span style='color:#1a9e99'>FREEDOM </span><span style='color:#e8a820'>EXTERIORS</span></h1><h2 style='color:#e8a820'>Hi " + form.name + "!</h2><p>Your " + form.type + " job has been created. View your portal below.</p><div style='text-align:center;margin:32px 0'><a href='" + portalLink + "' style='background:#e8a820;color:#000;padding:14px 32px;border-radius:8px;font-weight:800;text-decoration:none'>View Your Job Portal</a></div><p style='color:#6b8099'>Questions? Call (651) 283-1689</p></div>";
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + process.env.REACT_APP_RESEND_KEY,
+      },
+      body: JSON.stringify({
+        from: "Freedom Exteriors <nick@freedom-exteriors.com>",
+        to: [form.email],
+        subject: "Your Freedom Exteriors Job Portal is Ready",
+        html: emailHtml,
+      }),
+    });
+  }
+  setShowForm(false);
+};
 setShowForm(false);
 }
   }
