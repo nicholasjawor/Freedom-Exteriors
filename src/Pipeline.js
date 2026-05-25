@@ -293,7 +293,9 @@ const blank = () => ({
 
 
 // ── Main App ──────────────────────────────────────────────────────
-export default function Pipeline({ session, qbToken, qbRealm }) {
+export default function Pipeline({ session }) {
+ const qbToken = localStorage.getItem("qb_token");
+  const qbRealm = localStorage.getItem("qb_realm"); 
 const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("saved");
