@@ -14,51 +14,63 @@ export default async function handler(req, res) {
 
   if (action === "callback") {
     const { code, realmId } = req.query;
-    const credentials = Buffer.from(`${process.env.QB_CLIENT_ID}:${process.env.QB_CLIENT_SECRET}`).toString("base64");
-    const tokenRes = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: "https://freedom-exteriors.vercel.app/quickbooks/callback",
-      }),
-    });
-    const tokens = await tokenRes.json();
-    return res.redirect(`https://freedom-exteriors.vercel.app?qb_connected=true&realm=${realmId}&token=${tokens.access_token}`);
+    try {
+      const credentials = Buffer.from(`${process.env.QB_CLIENT_ID}:${process.env.QB_CLIENT_SECRET}`).toString("base64");
+      const tokenRes = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: "https://freedom-exteriors.vercel.app/quickbooks/callback",
+        }).toString(),
+      });
+      const tokens = await tokenRes.json();
+      if (tokens.access_token) {
+        return res.redirect(`https://freedom-exteriors.vercel.app?qb_token=${tokens.access_token}&qb_realm=${realmId}`);
+      } else {
+        return res.redirect(`https://freedom-exteriors.vercel.app?qb_error=token_failed`);
+      }
+    } catch(e) {
+      return res.redirect(`https://freedom-exteriors.vercel.app?qb_error=${e.message}`);
+    }
   }
 
   if (action === "invoice" && req.method === "POST") {
     const { realmId, accessToken, job } = req.body;
-    const invoiceRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/invoice`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: JSON.stringify({
-        Line: [{
-          Amount: job.estimate?.total || 0,
-          DetailType: "SalesItemLineDetail",
-          SalesItemLineDetail: {
-            ItemRef: { value: "1", name: "Services" },
-          },
-          Description: `${job.type} - ${job.address}, ${job.city}, ${job.state}`,
-        }],
-        CustomerRef: { name: job.name },
-        BillAddr: {
-          Line1: job.address,
-          City: job.city,
-          CountrySubDivisionCode: job.state,
+    try {
+      const invoiceRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/invoice?minorversion=65`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
         },
-      }),
-    });
-    const invoice = await invoiceRes.json();
-    return res.status(200).json({ success: true, invoice });
+        body: JSON.stringify({
+          Line: [{
+            Amount: job.estimate?.total || 0,
+            DetailType: "SalesItemLineDetail",
+            SalesItemLineDetail: {
+              ItemRef: { value: "1", name: "Services" },
+            },
+            Description: `${job.type} - ${job.address}, ${job.city}, ${job.state}`,
+          }],
+          CustomerRef: { name: job.name },
+        }),
+      });
+      const invoice = await invoiceRes.json();
+      if (invoice.Invoice) {
+        return res.status(200).json({ success: true, invoice: invoice.Invoice });
+      } else {
+        return res.status(400).json({ error: invoice });
+      }
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   res.status(400).json({ error: "Invalid action" });
