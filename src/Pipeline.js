@@ -293,8 +293,8 @@ const blank = () => ({
 
 
 // ── Main App ──────────────────────────────────────────────────────
-export default function Pipeline({ session }) {
-  const [jobs, setJobs] = useState([]);
+export default function Pipeline({ session, qbToken, qbRealm }) {
+const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("saved");
   const [mainView, setMainView] = useState("board");
@@ -744,6 +744,18 @@ const filtered = jobs.filter(j => {
   alert("Portal link copied! Send it to: " + selected.name);
 }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Copy Portal Link</button><button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit Job</button>
 <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied! Send it to: " + selected.name); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Portal Link</button>
+    {selected.stage === "collected" && qbToken && (
+  <button onClick={async () => {
+    const res = await fetch("/api/quickbooks?action=invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ realmId: qbRealm, accessToken: qbToken, job: selected }),
+    });
+    const data = await res.json();
+    if (data.success) alert("Invoice created in QuickBooks!");
+    else alert("Error creating invoice. Try reconnecting QuickBooks.");
+  }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📊 Create QB Invoice</button>
+)}                
                     <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, marginLeft:"auto" }}>Delete</button>
                   </div>
                 </div>
