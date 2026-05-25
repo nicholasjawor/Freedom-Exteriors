@@ -352,20 +352,16 @@ const filtered = jobs.filter(j => {
   updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
   if (isNew && form.email) {
     const portalLink = window.location.origin + "/portal/" + token;
-    const emailHtml = "<div style='font-family:Arial,sans-serif;padding:32px;background:#080d14;color:#e2eaf4'><h1 style='text-align:center'><span style='color:#1a9e99'>FREEDOM </span><span style='color:#e8a820'>EXTERIORS</span></h1><h2 style='color:#e8a820'>Hi " + form.name + "!</h2><p>Your " + form.type + " job has been created. View your portal below.</p><div style='text-align:center;margin:32px 0'><a href='" + portalLink + "' style='background:#e8a820;color:#000;padding:14px 32px;border-radius:8px;font-weight:800;text-decoration:none'>View Your Job Portal</a></div><p style='color:#6b8099'>Questions? Call (651) 283-1689</p></div>";
-    fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer re_Cich2WUy_7JYsry2qANx8BwcFo8C6XmFK",
-      },
-      body: JSON.stringify({
-        from: "Freedom Exteriors <nick@freedom-exteriors.com>",
-        to: [form.email],
-        subject: "Your Freedom Exteriors Job Portal is Ready",
-        html: emailHtml,
-      }),
-    });
+   fetch("/api/send-email", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    to: form.email,
+    homeownerName: form.name,
+    jobType: form.type,
+    portalLink,
+  }),
+});
   }
   setShowForm(false);
 };
