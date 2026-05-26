@@ -745,7 +745,7 @@ const filtered = jobs.filter(j => {
   alert("Portal link copied! Send it to: " + selected.name);
 }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Copy Portal Link</button><button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit Job</button>
 <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied! Send it to: " + selected.name); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Portal Link</button>
-    {selected.stage === "collected" && qbToken && (
+    {selected.stage === "collected" && (
   <button onClick={async () => {
     const res = await fetch("/api/quickbooks?action=invoice", {
       method: "POST",
