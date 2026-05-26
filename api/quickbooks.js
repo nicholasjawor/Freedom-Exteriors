@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { realmId, accessToken, job } = body;
     try {
-      const invoiceRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/invoice?minorversion=65`, { method: "POST", headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ Line: [{ Amount: job.estimate?.total || 0, DetailType: "SalesItemLineDetail", SalesItemLineDetail: { ItemRef: { value: "1", name: "Services" } }, Description: `${job.type} - ${job.address}, ${job.city}, ${job.state}` }], CustomerRef: { name: job.name } }) });
+      const invoiceRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/invoice?minorversion=65`, { method: "POST", headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ Line: [{ Amount: job.estimate?.total || 0, DetailType: "DescriptionOnly", Description: `${job.type} - ${job.address}, ${job.city}, ${job.state}` }], CustomerRef: { value: "1" } }) });
       const invoice = await invoiceRes.json();
       if (invoice.Invoice) { return res.status(200).json({ success: true, invoice: invoice.Invoice }); }
       else { return res.status(400).json({ error: invoice }); }
