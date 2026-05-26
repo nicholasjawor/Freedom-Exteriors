@@ -364,7 +364,10 @@ const filtered = jobs.filter(j => {
   }),
 });
   }
-  setShowForm(false);
+  if (isNew && form.phone) {
+      fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! This is Freedom Exteriors. We have received your project info and created your customer portal. Track your project status here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e));
+    }
+    setShowForm(false);
 };
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
 
@@ -1092,3 +1095,4 @@ function Sel({ label, value, onChange, options }) {
     </div>
   );
 }
+
