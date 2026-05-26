@@ -750,11 +750,12 @@ const filtered = jobs.filter(j => {
     const res = await fetch("/api/quickbooks?action=invoice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-     body: JSON.stringify({ 
-  realmId: localStorage.getItem("qb_realm"), 
-  accessToken: localStorage.getItem("qb_token"), 
-  job: selected 
-}),
+    body: JSON.stringify({
+        realmId: localStorage.getItem("qb_realm"),
+        accessToken: localStorage.getItem("qb_token"),
+        job: selected
+      }),
+    });
     const data = await res.json();
     if (data.success) alert("Invoice created in QuickBooks!");
     else alert("Error creating invoice. Try reconnecting QuickBooks.");
