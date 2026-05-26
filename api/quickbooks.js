@@ -10,9 +10,20 @@ export default async function handler(req, res) {
       const credentials = Buffer.from(`${process.env.QB_CLIENT_ID}:${process.env.QB_CLIENT_SECRET}`).toString("base64");
       const tokenRes = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", { method: "POST", headers: { "Authorization": `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: "https://freedom-exteriors.vercel.app/quickbooks/callback" }).toString() });
       const tokens = await tokenRes.json();
-      if (tokens.access_token) { return res.redirect(`https://freedom-exteriors.vercel.app?qb_token=${tokens.access_token}&qb_realm=${realmId}`); }
+      if (tokens.access_token) { return res.redirect(`https://freedom-exteriors.vercel.app?qb_token=${tokens.access_token}&qb_realm=${realmId}&qb_refresh=${tokens.refresh_token}`); }
       else { return res.redirect("https://freedom-exteriors.vercel.app?qb_error=token_failed"); }
     } catch(e) { return res.redirect("https://freedom-exteriors.vercel.app?qb_error=exception"); }
+  }
+  if (action === "refresh" && req.method === "POST") {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { refreshToken } = body;
+    try {
+      const credentials = Buffer.from(`${process.env.QB_CLIENT_ID}:${process.env.QB_CLIENT_SECRET}`).toString("base64");
+      const tokenRes = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", { method: "POST", headers: { "Authorization": `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }).toString() });
+      const tokens = await tokenRes.json();
+      if (tokens.access_token) { return res.status(200).json({ access_token: tokens.access_token, refresh_token: tokens.refresh_token }); }
+      else { return res.status(401).json({ error: "refresh_failed", detail: tokens }); }
+    } catch(e) { return res.status(500).json({ error: e.message }); }
   }
   if (action === "invoice" && req.method === "POST") {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;

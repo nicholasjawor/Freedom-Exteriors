@@ -747,18 +747,18 @@ const filtered = jobs.filter(j => {
 <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied! Send it to: " + selected.name); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Portal Link</button>
     {selected.stage === "collected" && (
   <button onClick={async () => {
-    const res = await fetch("/api/quickbooks?action=invoice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-        realmId: localStorage.getItem("qb_realm"),
-        accessToken: localStorage.getItem("qb_token"),
-        job: selected
-      }),
-    });
-    const data = await res.json();
-    if (data.success) alert("Invoice created in QuickBooks!");
-    else alert("Error creating invoice. Try reconnecting QuickBooks.");
+    const refreshToken = localStorage.getItem("qb_refresh_token");
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch("/api/quickbooks?action=refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken }) });
+          const refreshData = await refreshRes.json();
+          if (refreshData.access_token) { localStorage.setItem("qb_token", refreshData.access_token); localStorage.setItem("qb_refresh_token", refreshData.refresh_token); }
+        } catch(e) { console.warn("Token refresh failed"); }
+      }
+      const res = await fetch("/api/quickbooks?action=invoice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ realmId: localStorage.getItem("qb_realm"), accessToken: localStorage.getItem("qb_token"), job: selected }) });
+      const data = await res.json();
+      if (data.success) alert("Invoice created in QuickBooks!");
+      else alert("Error creating invoice. Try reconnecting QuickBooks.");
   }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📊 Create QB Invoice</button>
 )}                
                     <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, marginLeft:"auto" }}>Delete</button>

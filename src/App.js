@@ -24,11 +24,13 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("qb_token");
     const realm = params.get("qb_realm");
+    const refresh = params.get("qb_refresh");
     if (token && realm) {
       setQbToken(token);
       setQbRealm(realm);
       localStorage.setItem("qb_token", token);
       localStorage.setItem("qb_realm", realm);
+      if (refresh) localStorage.setItem("qb_refresh_token", refresh);
       window.history.replaceState({}, "", "/");
     } else {
       const savedToken = localStorage.getItem("qb_token");
