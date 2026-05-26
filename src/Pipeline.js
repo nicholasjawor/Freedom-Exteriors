@@ -353,6 +353,7 @@ const filtered = jobs.filter(j => {
   updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
   if (isNew && form.email) {
     const portalLink = window.location.origin + "/portal/" + token;
+    if (isNew && form.phone) { fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! Freedom Exteriors here. We have received your project info. Track your progress here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e)); }
    fetch("/api/send-email", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -364,10 +365,7 @@ const filtered = jobs.filter(j => {
   }),
 });
   }
-  if (isNew && form.phone) {
-      fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! This is Freedom Exteriors. We have received your project info and created your customer portal. Track your project status here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e));
-    }
-    setShowForm(false);
+  setShowForm(false);
 };
   const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
 
@@ -376,6 +374,7 @@ const filtered = jobs.filter(j => {
     const next = STAGES[idx + dir];
     if (!next) return;
     updateJob(job.id, { stage: next.id });
+    if (next && next.id === "collected" && job.phone) { fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: job.phone, message: `Hi ${job.name}! Your project with Freedom Exteriors is complete. Thank you for choosing us! Please leave us a review: https://g.page/r/YOUR_GOOGLE_REVIEW_LINK` }) }).catch(e => console.warn("SMS failed:", e)); }
   };
 
   const toggleFollowUp = id => updateJob(id, { followUp: !jobs.find(j => j.id === id)?.followUp });
@@ -1095,4 +1094,6 @@ function Sel({ label, value, onChange, options }) {
     </div>
   );
 }
+
+
 
