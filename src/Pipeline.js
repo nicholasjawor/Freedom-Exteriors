@@ -294,8 +294,7 @@ const blank = () => ({
 
 // ── Main App ──────────────────────────────────────────────────────
 export default function Pipeline({ session }) {
- const qbToken = localStorage.getItem("qb_token");
-  const qbRealm = localStorage.getItem("qb_realm"); 
+  
 const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("saved");
@@ -751,8 +750,11 @@ const filtered = jobs.filter(j => {
     const res = await fetch("/api/quickbooks?action=invoice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ realmId: qbRealm, accessToken: qbToken, job: selected }),
-    });
+     body: JSON.stringify({ 
+  realmId: localStorage.getItem("qb_realm"), 
+  accessToken: localStorage.getItem("qb_token"), 
+  job: selected 
+}),
     const data = await res.json();
     if (data.success) alert("Invoice created in QuickBooks!");
     else alert("Error creating invoice. Try reconnecting QuickBooks.");
