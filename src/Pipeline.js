@@ -264,7 +264,7 @@ async function persistJobs(jobs) {
     await supabase.from("jobs").delete().eq("user_email", "all");
     if (jobs.length) {
       await supabase.from("jobs").insert(
-        jobs.map(j => ({ user_email: "all", data: j, portal_token: j.portal_token || (j.data && j.data.portal_token) || null }))
+        jobs.map(j => ({ user_email: "all", data: j, portal_token: j.portal_token || null }))
       );
     }
   } catch(e) { console.warn(e); }
@@ -1094,6 +1094,7 @@ function Sel({ label, value, onChange, options }) {
     </div>
   );
 }
+
 
 
 
