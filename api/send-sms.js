@@ -2,6 +2,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
   const { to, message } = body;
+  const formattedTo = to.startsWith("+") ? to : `+1${to.replace(/\D/g, "")}`;
   if (!to || !message) return res.status(400).json({ error: "Missing to or message" });
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -18,3 +19,4 @@ export default async function handler(req, res) {
     else { return res.status(400).json({ error: data }); }
   } catch(e) { return res.status(500).json({ error: e.message }); }
 }
+
