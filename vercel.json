@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/quickbooks/callback", "destination": "/api/quickbooks?action=callback" }
+  ],
+  "crons": [
+    {
+      "path": "/api/send-reminders",
+      "schedule": "0 13 * * *"
+    }
   ]
 }
