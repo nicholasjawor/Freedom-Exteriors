@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
@@ -21,10 +21,17 @@ export default function Portal({ token }) {
   const [tab, setTab] = useState("status");
   const [message, setMessage] = useState("");
   const [msgSent, setMsgSent] = useState(false);
-  const [signature, setSignature] = useState("");
-  const [sigSaved, setSigSaved] = useState(false);
   const [, setPhotos] = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Signature state
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [typedName, setTypedName] = useState("");
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigSaved, setSigSaved] = useState(false);
+  const lastPos = useRef(null);
 
   useEffect(() => {
     async function load() {
@@ -39,6 +46,86 @@ export default function Portal({ token }) {
     load();
   }, [token]);
 
+  // ── Canvas drawing helpers ────────────────────────────────────────
+  const getPos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    if (e.touches) {
+      return {
+        x: e.touches[0].clientX - rect.left,
+        y: e.touches[0].clientY - rect.top,
+      };
+    }
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
+  const startDraw = useCallback((e) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setIsDrawing(true);
+    lastPos.current = getPos(e, canvas);
+  }, []);
+
+  const draw = useCallback((e) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = TEXT;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    lastPos.current = pos;
+    setHasDrawn(true);
+  }, [isDrawing]);
+
+  const stopDraw = useCallback((e) => {
+    e?.preventDefault();
+    setIsDrawing(false);
+    lastPos.current = null;
+  }, []);
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  };
+
+  const saveSignature = async () => {
+    if (!typedName.trim() || !hasDrawn) return;
+    setSigSaving(true);
+    const canvas = canvasRef.current;
+    const signatureImage = canvas.toDataURL("image/png");
+    const { data: row } = await supabase
+      .from("jobs")
+      .select("id, data")
+      .eq("portal_token", token)
+      .single();
+    if (row) {
+      const updated = {
+        ...row.data,
+        portalSignature: typedName.trim(),
+        portalSignatureImage: signatureImage,
+        portalSignedAt: new Date().toISOString(),
+      };
+      await supabase.from("jobs").update({ data: updated }).eq("id", row.id);
+      setJob(updated);
+      setSigSaved(true);
+    }
+    setSigSaving(false);
+  };
+
   const stageIdx = job ? STAGES.findIndex(s => s.id === job.stage) : 0;
 
   const sendMessage = async () => {
@@ -51,21 +138,6 @@ export default function Portal({ token }) {
     });
     setMessage("");
     setMsgSent(true);
-  };
-
-  const saveSignature = async () => {
-    if (!signature.trim()) return;
-    const { data: row } = await supabase
-      .from("jobs")
-      .select("id, data")
-      .eq("portal_token", token)
-      .single();
-    if (row) {
-      const updated = { ...row.data, portalSignature: signature, portalSignedAt: new Date().toISOString() };
-      await supabase.from("jobs").update({ data: updated }).eq("id", row.id);
-      setJob(updated);
-      setSigSaved(true);
-    }
   };
 
   const uploadPhotos = async (files) => {
@@ -113,6 +185,7 @@ export default function Portal({ token }) {
         </div>
         <a href="tel:6512831689" style={{ color:GOLD, fontWeight:700, fontSize:13, textDecoration:"none" }}>📞 (651) 283-1689</a>
       </header>
+
       <div style={{ background:PANEL2, borderBottom:`1px solid ${BORDER}`, padding:"16px 20px" }}>
         <div style={{ fontWeight:800, fontSize:22 }}>{job.name}</div>
         <div style={{ color:MUTED, fontSize:13 }}>{job.address}, {job.city}, {job.state}</div>
@@ -122,6 +195,7 @@ export default function Portal({ token }) {
           {job.claimNum && <span style={{ background:GOLD+"22", color:GOLD, borderRadius:5, padding:"3px 10px", fontSize:12, fontFamily:"monospace" }}>{job.claimNum}</span>}
         </div>
       </div>
+
       <div style={{ padding:"16px 20px", background:PANEL, borderBottom:`1px solid ${BORDER}` }}>
         <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Job Progress</div>
         <div style={{ display:"flex", alignItems:"center" }}>
@@ -142,12 +216,16 @@ export default function Portal({ token }) {
           <div style={{ fontSize:18, fontWeight:800, color:GOLD, marginTop:2 }}>{STAGES[stageIdx]?.icon} {STAGES[stageIdx]?.label}</div>
         </div>
       </div>
+
       <div style={{ background:PANEL2, borderBottom:`1px solid ${BORDER}`, padding:"0 20px", display:"flex", gap:2 }}>
         {[{id:"status",label:"📋 Status"},{id:"contracts",label:"✍️ Sign"},{id:"photos",label:"📷 Photos"},{id:"message",label:"💬 Message"}].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{ background:"none", border:"none", color:tab===t.id?GOLD:MUTED, borderBottom:tab===t.id?`2px solid ${GOLD}`:"2px solid transparent", padding:"12px 14px", cursor:"pointer", fontSize:12, fontWeight:tab===t.id?700:500, fontFamily:"inherit" }}>{t.label}</button>
         ))}
       </div>
+
       <div style={{ padding:"16px 20px", maxWidth:600, margin:"0 auto" }}>
+
+        {/* STATUS TAB */}
         {tab==="status" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Your Job Details</div>
@@ -177,39 +255,111 @@ export default function Portal({ token }) {
             )}
           </div>
         )}
+
+        {/* SIGN TAB */}
         {tab==="contracts" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>✍️ Sign Your Contract</div>
-            <div style={{ color:MUTED, fontSize:12, marginBottom:14 }}>Type your full legal name below to provide your electronic signature.</div>
+            <div style={{ color:MUTED, fontSize:12, marginBottom:16 }}>Draw your signature below and type your full legal name to sign electronically.</div>
+
             {job.portalSignature ? (
-              <div style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, borderRadius:8, padding:16, textAlign:"center" }}>
-                <div style={{ fontSize:20 }}>✅</div>
-                <div style={{ fontWeight:700, color:TEAL, marginTop:6 }}>Contract Signed</div>
-                <div style={{ color:MUTED, fontSize:12, marginTop:4 }}>Signed by: {job.portalSignature}</div>
-                <div style={{ color:MUTED, fontSize:11 }}>{new Date(job.portalSignedAt).toLocaleString()}</div>
+              // Already signed
+              <div style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, borderRadius:10, padding:20, textAlign:"center" }}>
+                <div style={{ fontSize:28 }}>✅</div>
+                <div style={{ fontWeight:800, color:TEAL, fontSize:16, marginTop:8 }}>Contract Signed</div>
+                <div style={{ color:MUTED, fontSize:12, marginTop:6 }}>Signed by: <strong style={{ color:TEXT }}>{job.portalSignature}</strong></div>
+                <div style={{ color:MUTED, fontSize:11, marginTop:2 }}>{new Date(job.portalSignedAt).toLocaleString()}</div>
+                {job.portalSignatureImage && (
+                  <div style={{ marginTop:14 }}>
+                    <div style={{ fontSize:10, color:MUTED, marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>Signature on file</div>
+                    <img src={job.portalSignatureImage} alt="Signature" style={{ maxWidth:"100%", border:`1px solid ${BORDER}`, borderRadius:6, background:"#fff", padding:4 }}/>
+                  </div>
+                )}
               </div>
             ) : (
               <div>
+                {/* Scope of work */}
                 {job.estimate?.scope && (
-                  <div style={{ background:PANEL, borderRadius:8, padding:12, border:`1px solid ${BORDER}`, marginBottom:14, fontSize:12, lineHeight:1.7, color:MUTED }}>
+                  <div style={{ background:PANEL, borderRadius:8, padding:12, border:`1px solid ${BORDER}`, marginBottom:16, fontSize:12, lineHeight:1.7, color:MUTED }}>
                     <div style={{ color:TEXT, fontWeight:700, marginBottom:6 }}>Scope of Work:</div>
                     {job.estimate.scope}
                   </div>
                 )}
-                <div style={{ marginBottom:10 }}>
-                  <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Type your full legal name to sign</label>
-                  <input value={signature} onChange={e => setSignature(e.target.value)} placeholder="Your full legal name"
-                    style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"12px 14px", fontSize:16, fontFamily:"Georgia, serif", boxSizing:"border-box" }}/>
+
+                {/* Signature canvas */}
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                    <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1 }}>Draw your signature</label>
+                    <button onClick={clearCanvas} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Clear</button>
+                  </div>
+                  <canvas
+                    ref={canvasRef}
+                    width={560}
+                    height={160}
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={stopDraw}
+                    onMouseLeave={stopDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDraw}
+                    style={{
+                      width:"100%",
+                      height:160,
+                      background:PANEL2,
+                      border:`2px solid ${hasDrawn ? TEAL : BORDER}`,
+                      borderRadius:8,
+                      cursor:"crosshair",
+                      display:"block",
+                      touchAction:"none",
+                    }}
+                  />
+                  {!hasDrawn && (
+                    <div style={{ textAlign:"center", color:BORDER, fontSize:12, marginTop:6, pointerEvents:"none" }}>
+                      Sign here with your finger or mouse
+                    </div>
+                  )}
                 </div>
-                <div style={{ color:MUTED, fontSize:11, marginBottom:14 }}>By typing your name above, you agree to the scope of work and terms outlined by Freedom Exteriors LLC. This constitutes a legally binding electronic signature.</div>
-                <button onClick={saveSignature} disabled={!signature.trim()} style={{ width:"100%", background:signature.trim()?GOLD:"#333", color:signature.trim()?"#000":MUTED, border:"none", borderRadius:8, padding:"12px", fontWeight:800, fontSize:14, cursor:signature.trim()?"pointer":"default", fontFamily:"inherit" }}>
-                  ✍️ Sign Contract
+
+                {/* Typed name */}
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Type your full legal name</label>
+                  <input
+                    value={typedName}
+                    onChange={e => setTypedName(e.target.value)}
+                    placeholder="Your full legal name"
+                    style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"12px 14px", fontSize:16, fontFamily:"Georgia, serif", boxSizing:"border-box" }}
+                  />
+                </div>
+
+                <div style={{ color:MUTED, fontSize:11, marginBottom:14, lineHeight:1.6 }}>
+                  By drawing your signature and typing your name above, you agree to the scope of work and terms outlined by Freedom Exteriors LLC. This constitutes a legally binding electronic signature.
+                </div>
+
+                <button
+                  onClick={saveSignature}
+                  disabled={!typedName.trim() || !hasDrawn || sigSaving}
+                  style={{
+                    width:"100%",
+                    background: typedName.trim() && hasDrawn ? GOLD : "#333",
+                    color: typedName.trim() && hasDrawn ? "#000" : MUTED,
+                    border:"none",
+                    borderRadius:8,
+                    padding:"13px",
+                    fontWeight:800,
+                    fontSize:14,
+                    cursor: typedName.trim() && hasDrawn ? "pointer" : "default",
+                    fontFamily:"inherit",
+                  }}
+                >
+                  {sigSaving ? "Saving…" : "✍️ Sign Contract"}
                 </button>
-                {sigSaved && <div style={{ color:TEAL, fontWeight:700, textAlign:"center", marginTop:10 }}>✅ Signature saved!</div>}
               </div>
             )}
           </div>
         )}
+
+        {/* PHOTOS TAB */}
         {tab==="photos" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>📷 Upload Photos</div>
@@ -231,6 +381,8 @@ export default function Portal({ token }) {
             )}
           </div>
         )}
+
+        {/* MESSAGE TAB */}
         {tab==="message" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>💬 Message Your Rep</div>
