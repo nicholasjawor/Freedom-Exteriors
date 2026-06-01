@@ -23,6 +23,7 @@ export default function Portal({ token }) {
   const [msgSent, setMsgSent] = useState(false);
   const [, setPhotos] = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [payingDeposit, setPayingDeposit] = useState(false);
 
   // Signature state
   const canvasRef = useRef(null);
@@ -39,25 +40,61 @@ export default function Portal({ token }) {
         .select("*")
         .eq("portal_token", token)
         .single();
-      if (!error && data) setJob(data.data);
+
+      if (!error && data) {
+        let jobData = data.data;
+
+        // If redirected back from Stripe with ?paid=true, mark deposit as paid
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("paid") === "true" && !jobData.depositPaid) {
+          const updated = { ...jobData, depositPaid: true, depositPaidAt: new Date().toISOString() };
+          await supabase.from("jobs").update({ data: updated }).eq("id", data.id);
+          jobData = updated;
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+
+        setJob(jobData);
+      }
       setLoading(false);
     }
     load();
   }, [token]);
 
-  // ── Canvas drawing helpers ────────────────────────────────────────
+  // Stripe deposit payment
+  const handlePayDeposit = async () => {
+    if (!job?.estimate?.downPayment) return;
+    setPayingDeposit(true);
+    try {
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: job.estimate.downPayment,
+          customerName: job.name,
+          jobType: job.type,
+          portalToken: token,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Payment error: " + data.error);
+        setPayingDeposit(false);
+      }
+    } catch (e) {
+      alert("Payment failed. Please try again or call (651) 283-1689.");
+      setPayingDeposit(false);
+    }
+  };
+
+  // Canvas drawing helpers
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
     if (e.touches) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top,
-      };
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
     }
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
   const startDraw = useCallback((e) => {
@@ -106,11 +143,7 @@ export default function Portal({ token }) {
     setSigSaving(true);
     const canvas = canvasRef.current;
     const signatureImage = canvas.toDataURL("image/png");
-    const { data: row } = await supabase
-      .from("jobs")
-      .select("id, data")
-      .eq("portal_token", token)
-      .single();
+    const { data: row } = await supabase.from("jobs").select("id, data").eq("portal_token", token).single();
     if (row) {
       const updated = {
         ...row.data,
@@ -223,7 +256,6 @@ export default function Portal({ token }) {
 
       <div style={{ padding:"16px 20px", maxWidth:600, margin:"0 auto" }}>
 
-        {/* STATUS TAB */}
         {tab==="status" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Your Job Details</div>
@@ -245,6 +277,30 @@ export default function Portal({ token }) {
                 </div>
               </div>
             )}
+            {job.estimate?.downPayment > 0 && (
+              <div style={{ marginBottom:14 }}>
+                {job.depositPaid ? (
+                  <div style={{ background:"#10b98122", border:"1px solid #10b981", borderRadius:10, padding:16, textAlign:"center" }}>
+                    <div style={{ fontSize:24 }}>✅</div>
+                    <div style={{ fontWeight:800, color:"#10b981", fontSize:15, marginTop:6 }}>Deposit Paid</div>
+                    <div style={{ color:MUTED, fontSize:12, marginTop:4 }}>
+                      ${job.estimate.downPayment.toLocaleString()} received
+                      {job.depositPaidAt && ` · ${new Date(job.depositPaidAt).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background:GOLD+"11", border:`1px solid ${GOLD}44`, borderRadius:10, padding:16 }}>
+                    <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Deposit Due</div>
+                    <div style={{ fontSize:28, fontWeight:800, color:GOLD, marginBottom:12 }}>${job.estimate.downPayment.toLocaleString()}</div>
+                    <button onClick={handlePayDeposit} disabled={payingDeposit}
+                      style={{ width:"100%", background:GOLD, color:"#000", border:"none", borderRadius:8, padding:"13px", fontWeight:800, fontSize:15, cursor:payingDeposit?"default":"pointer", fontFamily:"inherit", opacity:payingDeposit?0.7:1 }}>
+                      {payingDeposit ? "Redirecting to payment…" : "💳 Pay Deposit Now"}
+                    </button>
+                    <div style={{ color:MUTED, fontSize:10, textAlign:"center", marginTop:8 }}>Secure payment powered by Stripe</div>
+                  </div>
+                )}
+              </div>
+            )}
             {job.notes && (
               <div style={{ background:PANEL, borderRadius:7, padding:"10px 12px", border:`1px solid ${BORDER}` }}>
                 <div style={{ color:MUTED, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Notes from your rep</div>
@@ -254,14 +310,11 @@ export default function Portal({ token }) {
           </div>
         )}
 
-        {/* SIGN TAB */}
         {tab==="contracts" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>✍️ Sign Your Contract</div>
             <div style={{ color:MUTED, fontSize:12, marginBottom:16 }}>Draw your signature below and type your full legal name to sign electronically.</div>
-
             {job.portalSignature ? (
-              // Already signed
               <div style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, borderRadius:10, padding:20, textAlign:"center" }}>
                 <div style={{ fontSize:28 }}>✅</div>
                 <div style={{ fontWeight:800, color:TEAL, fontSize:16, marginTop:8 }}>Contract Signed</div>
@@ -276,80 +329,33 @@ export default function Portal({ token }) {
               </div>
             ) : (
               <div>
-                {/* Scope of work */}
                 {job.estimate?.scope && (
                   <div style={{ background:PANEL, borderRadius:8, padding:12, border:`1px solid ${BORDER}`, marginBottom:16, fontSize:12, lineHeight:1.7, color:MUTED }}>
                     <div style={{ color:TEXT, fontWeight:700, marginBottom:6 }}>Scope of Work:</div>
                     {job.estimate.scope}
                   </div>
                 )}
-
-                {/* Signature canvas */}
                 <div style={{ marginBottom:14 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                     <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1 }}>Draw your signature</label>
                     <button onClick={clearCanvas} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Clear</button>
                   </div>
-                  <canvas
-                    ref={canvasRef}
-                    width={560}
-                    height={160}
-                    onMouseDown={startDraw}
-                    onMouseMove={draw}
-                    onMouseUp={stopDraw}
-                    onMouseLeave={stopDraw}
-                    onTouchStart={startDraw}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDraw}
-                    style={{
-                      width:"100%",
-                      height:160,
-                      background:PANEL2,
-                      border:`2px solid ${hasDrawn ? TEAL : BORDER}`,
-                      borderRadius:8,
-                      cursor:"crosshair",
-                      display:"block",
-                      touchAction:"none",
-                    }}
-                  />
-                  {!hasDrawn && (
-                    <div style={{ textAlign:"center", color:BORDER, fontSize:12, marginTop:6, pointerEvents:"none" }}>
-                      Sign here with your finger or mouse
-                    </div>
-                  )}
+                  <canvas ref={canvasRef} width={560} height={160}
+                    onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                    onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
+                    style={{ width:"100%", height:160, background:PANEL2, border:`2px solid ${hasDrawn?TEAL:BORDER}`, borderRadius:8, cursor:"crosshair", display:"block", touchAction:"none" }}/>
+                  {!hasDrawn && <div style={{ textAlign:"center", color:BORDER, fontSize:12, marginTop:6 }}>Sign here with your finger or mouse</div>}
                 </div>
-
-                {/* Typed name */}
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Type your full legal name</label>
-                  <input
-                    value={typedName}
-                    onChange={e => setTypedName(e.target.value)}
-                    placeholder="Your full legal name"
-                    style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"12px 14px", fontSize:16, fontFamily:"Georgia, serif", boxSizing:"border-box" }}
-                  />
+                  <input value={typedName} onChange={e => setTypedName(e.target.value)} placeholder="Your full legal name"
+                    style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"12px 14px", fontSize:16, fontFamily:"Georgia, serif", boxSizing:"border-box" }}/>
                 </div>
-
                 <div style={{ color:MUTED, fontSize:11, marginBottom:14, lineHeight:1.6 }}>
                   By drawing your signature and typing your name above, you agree to the scope of work and terms outlined by Freedom Exteriors LLC. This constitutes a legally binding electronic signature.
                 </div>
-
-                <button
-                  onClick={saveSignature}
-                  disabled={!typedName.trim() || !hasDrawn || sigSaving}
-                  style={{
-                    width:"100%",
-                    background: typedName.trim() && hasDrawn ? GOLD : "#333",
-                    color: typedName.trim() && hasDrawn ? "#000" : MUTED,
-                    border:"none",
-                    borderRadius:8,
-                    padding:"13px",
-                    fontWeight:800,
-                    fontSize:14,
-                    cursor: typedName.trim() && hasDrawn ? "pointer" : "default",
-                    fontFamily:"inherit",
-                  }}
-                >
+                <button onClick={saveSignature} disabled={!typedName.trim()||!hasDrawn||sigSaving}
+                  style={{ width:"100%", background:typedName.trim()&&hasDrawn?GOLD:"#333", color:typedName.trim()&&hasDrawn?"#000":MUTED, border:"none", borderRadius:8, padding:"13px", fontWeight:800, fontSize:14, cursor:typedName.trim()&&hasDrawn?"pointer":"default", fontFamily:"inherit" }}>
                   {sigSaving ? "Saving…" : "✍️ Sign Contract"}
                 </button>
               </div>
@@ -357,7 +363,6 @@ export default function Portal({ token }) {
           </div>
         )}
 
-        {/* PHOTOS TAB */}
         {tab==="photos" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>📷 Upload Photos</div>
@@ -380,7 +385,6 @@ export default function Portal({ token }) {
           </div>
         )}
 
-        {/* MESSAGE TAB */}
         {tab==="message" && (
           <div>
             <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>💬 Message Your Rep</div>
