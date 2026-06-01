@@ -30,7 +30,6 @@ export default function Portal({ token }) {
   const [hasDrawn, setHasDrawn] = useState(false);
   const [typedName, setTypedName] = useState("");
   const [sigSaving, setSigSaving] = useState(false);
-  const [sigSaved, setSigSaved] = useState(false);
   const lastPos = useRef(null);
 
   useEffect(() => {
@@ -121,7 +120,6 @@ export default function Portal({ token }) {
       };
       await supabase.from("jobs").update({ data: updated }).eq("id", row.id);
       setJob(updated);
-      setSigSaved(true);
     }
     setSigSaving(false);
   };
