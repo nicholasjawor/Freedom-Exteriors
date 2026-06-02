@@ -485,7 +485,7 @@ const fetchHoverMeasurements = async (job) => {
     } catch (e) {
       alert("Failed to fetch Hover data.");
     }
-  };
+  }
   const sf = v => v === undefined ? "" : v;
 
   if (loading) return (
