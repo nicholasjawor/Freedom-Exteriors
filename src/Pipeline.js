@@ -790,7 +790,8 @@ const filtered = jobs.filter(j => {
       else alert("Error creating invoice. Try reconnecting QuickBooks.");
   }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📊 Create QB Invoice</button>
 )}                
-               {selected.installDate && <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📅 Add to Calendar</button>}    
+               {selected.installDate && <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📅 Add to Calendar</button>}
+                    {selected.hoverId && <button onClick={() => fetchHoverMeasurements(selected)} style={{ background:"#ff6b2222", border:"1px solid #ff6b22", color:"#ff6b22", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>?? Fetch Measurements</button>}    
                     <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, marginLeft:"auto" }}>Delete</button>
                   </div>
                 </div>
@@ -1122,6 +1123,7 @@ function Sel({ label, value, onChange, options }) {
     </div>
   );
 }
+
 
 
 
