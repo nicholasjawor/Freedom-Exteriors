@@ -433,6 +433,16 @@ const filtered = jobs.filter(j => {
     return { opAlloc, netRev, costs, commNet, commission };
   };
 
+ const openGoogleCalendar = (job) => {
+  const start = job.installDate.replace(/-/g, "");
+  const d = new Date(job.installDate);
+  d.setDate(d.getDate() + 1);
+  const end = d.toISOString().slice(0,10).replace(/-/g, "");
+  const title = encodeURIComponent(`Freedom Exteriors — ${job.type} Installation`);
+  const location = encodeURIComponent(`${job.address}, ${job.city}, ${job.state}`);
+  const details = encodeURIComponent(`Freedom Exteriors LLC · (651) 283-1689\nJob: ${job.type}\nCustomer: ${job.name}`);
+  window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`, "_blank");
+};
   const sf = v => v === undefined ? "" : v;
 
   if (loading) return (
@@ -745,7 +755,9 @@ const filtered = jobs.filter(j => {
   const link = `${window.location.origin}/portal/${token}`;
   navigator.clipboard.writeText(link);
   alert("Portal link copied! Send it to: " + selected.name);
-}} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Copy Portal Link</button><button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit Job</button>
+}} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Copy Portal Link</button><button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"7px 16px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}{selected.installDate && (
+  <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📅 Add to Calendar</button>
+)}>Edit Job</button>
 <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied! Send it to: " + selected.name); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>🔗 Portal Link</button>
     {selected.stage === "collected" && (
   <button onClick={async () => {
