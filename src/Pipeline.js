@@ -443,6 +443,23 @@ const filtered = jobs.filter(j => {
   const details = encodeURIComponent(`Freedom Exteriors LLC · (651) 283-1689\nJob: ${job.type}\nCustomer: ${job.name}`);
   window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`, "_blank");
 };
+  const fetchHoverMeasurements = async (job) => {
+    if (!job.hoverId) return;
+    try {
+      const res = await fetch(`/api/hover?action=measurements&hoverId=${job.hoverId}`);
+      const data = await res.json();
+      if (data.success) {
+        updateJob(job.id, { hoverMeasurements: data.measurements });
+        alert("Hover measurements loaded!");
+      } else if (res.status === 401) {
+        window.location.href = "/api/hover?action=auth";
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (e) {
+      alert("Failed to fetch Hover data.");
+    }
+  };
   const sf = v => v === undefined ? "" : v;
 
   if (loading) return (
