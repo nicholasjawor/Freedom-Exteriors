@@ -433,7 +433,17 @@ const filtered = jobs.filter(j => {
     return { opAlloc, netRev, costs, commNet, commission };
   };
 
- const openGoogleCalendar = (job) => {const fetchHoverMeasurements = async (job) => {
+ const openGoogleCalendar = (job) => {
+  const start = job.installDate.replace(/-/g, "");
+  const d = new Date(job.installDate);
+  d.setDate(d.getDate() + 1);
+  const end = d.toISOString().slice(0,10).replace(/-/g, "");
+  const title = encodeURIComponent(`Freedom Exteriors — ${job.type} Installation`);
+  const location = encodeURIComponent(`${job.address}, ${job.city}, ${job.state}`);
+  const details = encodeURIComponent(`Freedom Exteriors LLC · (651) 283-1689\nJob: ${job.type}\nCustomer: ${job.name}`);
+  window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`, "_blank");
+};
+  const fetchHoverMeasurements = async (job) => {
   if (!job.hoverId) return;
   try {
     const res = await fetch(`/api/hover?action=measurements&hoverId=${job.hoverId}`);
@@ -1093,7 +1103,6 @@ const filtered = jobs.filter(j => {
       )}
     </div>
   );
-}
 
 // ── Overlay ────────────────────────────────────────────────────────
 function Overlay({ children, onClose, wide }) {
