@@ -433,7 +433,23 @@ const filtered = jobs.filter(j => {
     return { opAlloc, netRev, costs, commNet, commission };
   };
 
- const openGoogleCalendar = (job) => {
+ const openGoogleCalendar = (job) => {const fetchHoverMeasurements = async (job) => {
+  if (!job.hoverId) return;
+  try {
+    const res = await fetch(`/api/hover?action=measurements&hoverId=${job.hoverId}`);
+    const data = await res.json();
+    if (data.success) {
+      updateJob(job.id, { hoverMeasurements: data.measurements });
+      alert("Hover measurements loaded!");
+    } else if (res.status === 401) {
+      window.location.href = "/api/hover?action=auth";
+    } else {
+      alert("Error fetching measurements: " + data.error);
+    }
+  } catch (e) {
+    alert("Failed to fetch Hover data.");
+  }
+};
   const start = job.installDate.replace(/-/g, "");
   const d = new Date(job.installDate);
   d.setDate(d.getDate() + 1);
@@ -737,6 +753,20 @@ const filtered = jobs.filter(j => {
                       <div style={{ color:MUTED, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Hover Job ID</div>
                       {selected.hoverId ? <a href={`https://hover.to/jobs/${selected.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontFamily:"monospace", fontSize:13, fontWeight:700, textDecoration:"none" }}>{selected.hoverId} ↗</a> : <div style={{ color:BORDER, fontSize:12 }}>Not linked</div>}
                     </div>
+                    {selected.hoverMeasurements && (
+  <div style={{ gridColumn:"1/-1", background:PANEL2, borderRadius:7, padding:"10px 12px", border:`1px solid #ff6b2244` }}>
+    <div style={{ color:"#ff6b22", fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📐 Hover Measurements</div>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
+      {[["Total Roof Area", selected.hoverMeasurements.totalRoofArea, "sq ft"],["Pitch", selected.hoverMeasurements.predominantPitch, "/12"],["Ridge", selected.hoverMeasurements.ridgeLength, "lf"],["Valley", selected.hoverMeasurements.valleyLength, "lf"],["Hip", selected.hoverMeasurements.hipLength, "lf"],["Eaves", selected.hoverMeasurements.eavesLength, "lf"]].map(([label, val, unit]) => val && (
+        <div key={label} style={{ background:PANEL, borderRadius:5, padding:"6px 8px" }}>
+          <div style={{ fontSize:9, color:MUTED, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
+          <div style={{ fontSize:13, fontWeight:700, color:"#ff6b22" }}>{val} <span style={{ fontSize:10, color:MUTED }}>{unit}</span></div>
+        </div>
+      ))}
+    </div>
+    <div style={{ fontSize:9, color:MUTED, marginTop:6 }}>Fetched {new Date(selected.hoverMeasurements.fetchedAt).toLocaleDateString()}</div>
+  </div>
+)}
                   </div>
                   {selected.notes && <div style={{ background:PANEL2, borderRadius:7, padding:"10px 12px", marginBottom:14 }}><div style={{ color:MUTED, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Notes</div><div style={{ fontSize:13, lineHeight:1.6 }}>{selected.notes}</div></div>}
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14, alignItems:"center" }}>
@@ -773,7 +803,9 @@ const filtered = jobs.filter(j => {
       else alert("Error creating invoice. Try reconnecting QuickBooks.");
   }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📊 Create QB Invoice</button>
 )}                
-               {selected.installDate && <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📅 Add to Calendar</button>}    
+               {selected.installDate && <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📅 Add to Calendar</button>} {selected.hoverId && (
+  <button onClick={() => fetchHoverMeasurements(selected)} style={{ background:"#ff6b2222", border:"1px solid #ff6b22", color:"#ff6b22", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>📐 Fetch Measurements</button>
+)}   
                     <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:12, marginLeft:"auto" }}>Delete</button>
                   </div>
                 </div>

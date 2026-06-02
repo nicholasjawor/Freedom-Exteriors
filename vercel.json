@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/quickbooks/callback", "destination": "/api/quickbooks?action=callback" }
+    { "source": "/hover/callback", "destination": "/api/hover?action=callback" }
   ],
   "crons": [
     {
