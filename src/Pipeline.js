@@ -303,7 +303,7 @@ export default function Pipeline({ session }) {
   const [contractPreview, setContractPreview] = useState(null);
   const [abcFilter, setAbcFilter] = useState("All");
 
-  useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, [session?.user?.email]);
+  useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, []);
 
   const save = useCallback(async (next) => {
     setSaveStatus("saving");
@@ -473,7 +473,7 @@ export default function Pipeline({ session }) {
 
       {/* NAV */}
       <nav style={{ background:PANEL2, borderBottom:`1px solid ${BORDER}`, padding:`0 ${isMobile?8:20}px`, display:"flex", alignItems:"center", gap:2, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-        {[{id:"board",label:isMobile?"📋":"📋 Board"},{id:"list",label:isMobile?"📄":"📄 Jobs"},{id:"followups",label:isMobile?`🔔${followUps.length}`:`🔔 Follow-ups (${followUps.length})`},{id:"commission",label:isMobile?"💰":"💰 Commission"}].map(v => (
+        {[{id:"board",label:isMobie?"📋":"📋 Board"},{id:"list",label:isMobile?"📄":"📄 Jobs"},{id:"followups",label:isMobile?`🔔${followUps.length}`:`🔔 Follow-ups (${followUps.length})`},{id:"commission",label:isMobile?"💰":"💰 Commission"}].map(v => (
           <button key={v.id} onClick={() => setMainView(v.id)} style={{ background:"none", border:"none", color:mainView===v.id?GOLD:MUTED, borderBottom:mainView===v.id?`2px solid ${GOLD}`:"2px solid transparent", padding:isMobile?"10px 12px":"12px 16px", cursor:"pointer", fontSize:isMobile?12:13, fontWeight:mainView===v.id?700:500, fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>{v.label}</button>
         ))}
         <div style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
