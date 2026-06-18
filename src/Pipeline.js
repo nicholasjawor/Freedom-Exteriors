@@ -312,6 +312,29 @@ export default function Pipeline({ session }) {
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, []);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("jobs-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          const deletedId = payload.old?.job_id;
+          if (deletedId == null) return;
+          setJobs(prev => prev.filter(j => j.id !== deletedId));
+        } else {
+          const incoming = payload.new?.data;
+          if (!incoming) return;
+          setJobs(prev => {
+            const exists = prev.some(j => j.id === incoming.id);
+            return exists
+              ? prev.map(j => j.id === incoming.id ? incoming : j)
+              : [...prev, incoming];
+          });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   const save = useCallback(async (next) => {
     setSaveStatus("saving");
     try { await persistJobs(next, session?.user?.email); setSaveStatus("saved"); }
