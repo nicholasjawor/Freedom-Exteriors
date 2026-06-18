@@ -243,33 +243,40 @@ General Contractor License #IR813877 | Phone: (651) 283-1689`
   },
 };
 
-const SK = "freedom-ext-v3";
 async function loadJobs() {
   try {
     const { data, error } = await supabase.from("jobs").select("*").eq("user_email", "all");
-    if (!error && data?.length) return data.map(r => r.data);
-  } catch(_) {}
-  try { const r = await window.storage.get(SK); if (r?.value) { const p = JSON.parse(r.value); return p.length ? p : SEED; } } catch(_) {}
-  return SEED;
+    if (error) throw error;
+    return (data || []).map(r => r.data);
+  } catch (e) {
+    console.error("Failed to load jobs from Supabase:", e);
+    return [];
+  }
 }
 async function persistJobs(jobs) {
+  if (!jobs.length) return;
   try {
-    await supabase.from("jobs").delete().eq("user_email", "all");
-    if (jobs.length) {
-      await supabase.from("jobs").insert(jobs.map(j => ({ user_email: "all", data: j, portal_token: j.portal_token || null })));
-    }
-  } catch(e) { console.warn(e); }
-  try { await window.storage.set(SK, JSON.stringify(jobs)); } catch(_) {}
+    const rows = jobs.map(j => ({
+      job_id: j.id,
+      user_email: "all",
+      data: j,
+      portal_token: j.portal_token || null,
+    }));
+    const { error } = await supabase.from("jobs").upsert(rows, { onConflict: "job_id" });
+    if (error) throw error;
+  } catch (e) {
+    console.error("Failed to save jobs:", e);
+    throw e;
+  }
 }
-
-const SEED = [
-  { id:1, name:"Mike Harrington", address:"412 Elm St", city:"Blaine", state:"MN", phone:"612-555-0182", type:"Roof", stage:"approved", claimNum:"CLM-2026-8821", insurer:"State Farm", adjuster:"Sarah Cole", adjPhone:"651-555-0291", hoverId:"", notes:"Supplement pending for decking. Drip edge not included.", followUp:true, assigned:"Me", added:"2026-05-01", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
-  { id:2, name:"Donna Reyes", address:"88 Birchwood Dr", city:"Coon Rapids", state:"MN", phone:"763-555-0347", type:"Roof + Siding", stage:"claim", claimNum:"CLM-2026-9104", insurer:"Allstate", adjuster:"Tom Walsh", adjPhone:"612-555-0412", hoverId:"", notes:"Adjuster appt Friday 10am.", followUp:true, assigned:"Me", added:"2026-05-08", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
-  { id:3, name:"James Pollard", address:"301 Oak Ave", city:"Maple Grove", state:"MN", phone:"763-555-0561", type:"Windows", stage:"lead", claimNum:"", insurer:"Travelers", adjuster:"", adjPhone:"", hoverId:"", notes:"April hail storm.", followUp:false, assigned:"Me", added:"2026-05-15", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
-  { id:4, name:"Carla Dietrich", address:"19 Spruce Ln", city:"Plymouth", state:"MN", phone:"952-555-0788", type:"Roof", stage:"scheduled", claimNum:"CLM-2026-7755", insurer:"Farmers", adjuster:"Bill Nguyen", adjPhone:"952-555-0900", hoverId:"", notes:"Install May 26. GAF Timberline HDZ Charcoal.", followUp:false, assigned:"Me", added:"2026-04-22", photos:[], checklist:{}, materials:[], estimate:{total:18500,downPayment:2500,scope:"Full roof replacement - GAF Timberline HDZ Charcoal.",deductible:2500}, contract:null, commission:{grossRevenue:18500} },
-  { id:5, name:"Ray Okonkwo", address:"554 Cedar Blvd", city:"Fridley", state:"MN", phone:"612-555-0234", type:"Siding", stage:"inspection", claimNum:"", insurer:"Liberty Mutual", adjuster:"", adjPhone:"", hoverId:"", notes:"Storm damage May 10.", followUp:true, assigned:"Me", added:"2026-05-16", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
-  { id:6, name:"Beth Larson", address:"77 Lake Shore Rd", city:"Hudson", state:"WI", phone:"715-555-0311", type:"Roof", stage:"lead", claimNum:"", insurer:"American Family", adjuster:"", adjPhone:"", hoverId:"", notes:"Referral. Hail damage.", followUp:false, assigned:"Me", added:"2026-05-17", photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0}, contract:null, commission:{grossRevenue:0} },
-];
+async function deleteJobRow(id) {
+  try {
+    const { error } = await supabase.from("jobs").delete().eq("job_id", id);
+    if (error) throw error;
+  } catch (e) {
+    console.error("Failed to delete job:", e);
+  }
+}
 
 const blank = () => ({
   id: Date.now(), name:"", address:"", city:"", state:"MN", phone:"", email:"",
@@ -353,7 +360,7 @@ export default function Pipeline({ session }) {
     setShowForm(false);
   };
 
-  const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); setSelected(null); };
+  const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); deleteJobRow(id); setSelected(null); };
 
   const moveStage = (job, dir) => {
     const idx = STAGES.findIndex(s => s.id === job.stage);
