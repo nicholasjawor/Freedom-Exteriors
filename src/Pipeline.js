@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
+import ContractFill from "./ContractFill";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -308,6 +309,7 @@ export default function Pipeline({ session }) {
   const [editing, setEditing] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [contractPreview, setContractPreview] = useState(null);
+  const [contractFillOpen, setContractFillOpen] = useState(false);
   const [abcFilter, setAbcFilter] = useState("All");
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); setLoading(false); }); }, []);
@@ -769,6 +771,7 @@ export default function Pipeline({ session }) {
                   <div style={{ display:"flex", flexDirection:isMobile?"column":"row", gap:8, flexWrap:"wrap" }}>
                     <button onClick={() => toggleFollowUp(selected.id)} style={{ background:selected.followUp?GOLD+"22":PANEL2, border:`1px solid ${selected.followUp?GOLD:BORDER}`, color:selected.followUp?GOLD:MUTED, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>{selected.followUp?"🔔 Unmark Follow-up":"🔕 Mark Follow-up"}</button>
                     <button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>✏️ Edit Job</button>
+                    <button onClick={() => setContractFillOpen(true)} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📝 Fill Contract{selected.contract?.ownerSignature && selected.contract?.contractorSignature ? " ✓" : ""}</button>
                     <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
                     {selected.stage === "collected" && (
                       <button onClick={async () => { const refreshToken = localStorage.getItem("qb_refresh_token"); if (refreshToken) { try { const refreshRes = await fetch("/api/quickbooks?action=refresh", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({refreshToken}) }); const refreshData = await refreshRes.json(); if (refreshData.access_token) { localStorage.setItem("qb_token", refreshData.access_token); localStorage.setItem("qb_refresh_token", refreshData.refresh_token); } } catch(e) { console.warn("Token refresh failed"); } } const res = await fetch("/api/quickbooks?action=invoice", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({realmId:localStorage.getItem("qb_realm"),accessToken:localStorage.getItem("qb_token"),job:selected}) }); const data = await res.json(); if (data.success) alert("Invoice created in QuickBooks!"); else alert("Error. Try reconnecting QuickBooks."); }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📊 QB Invoice</button>
@@ -1008,6 +1011,16 @@ export default function Pipeline({ session }) {
           </div>
         </Overlay>
       )}
+
+      {/* FILL CONTRACT (digitized, iPad-friendly) */}
+      {contractFillOpen && selected && (
+        <ContractFill
+          job={selected}
+          onSave={(contractData) => updateJob(selected.id, { contract: contractData })}
+          onClose={() => setContractFillOpen(false)}
+        />
+      )}
+
 
       {/* LIGHTBOX */}
       {lightbox && (
