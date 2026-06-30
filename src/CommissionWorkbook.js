@@ -94,7 +94,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
   const r = calc(local);
 
   return (
-    <div style={{ background: DARK, minHeight: "100vh" }}>
+    <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
       {/* Header */}
       <div style={{ background: PANEL2, borderBottom: `1px solid ${BORDER}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
