@@ -5,6 +5,9 @@ import CommissionWorkbook from "./CommissionWorkbook";
 import ContractorAgreement from "./ContractorAgreement";
 import RetailContract from "./RetailContract";
 import PreBuildLetter from "./PreBuildLetter";
+import LienNotice from "./LienNotice";
+import CancellationNotice from "./CancellationNotice";
+import DocsAcknowledgement from "./DocsAcknowledgement";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -320,6 +323,9 @@ export default function Pipeline({ session }) {
   const [contractorAgreementOpen, setContractorAgreementOpen] = useState(false);
   const [retailContractOpen, setRetailContractOpen] = useState(false);
   const [preBuildLetterOpen, setPreBuildLetterOpen] = useState(false);
+  const [lienNoticeOpen, setLienNoticeOpen] = useState(false);
+  const [cancellationNoticeOpen, setCancellationNoticeOpen] = useState(false);
+  const [docsAckOpen, setDocsAckOpen] = useState(false);
   const [abcFilter, setAbcFilter] = useState("All");
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
@@ -782,6 +788,9 @@ export default function Pipeline({ session }) {
                     <button onClick={() => setContractFillOpen(true)} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📝 Roofing Contract{selected.contract?.ownerSignature && selected.contract?.contractorSignature ? " ✓" : ""}</button>
                     <button onClick={() => setRetailContractOpen(true)} style={{ background:"#0ea5e922", border:"1px solid #0ea5e9", color:"#38bdf8", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🧾 Retail Contract{selected.retailContract?.ownerSignature && selected.retailContract?.contractorSignature ? " ✓" : ""}</button>
                     <button onClick={() => setPreBuildLetterOpen(true)} style={{ background:"#10b98122", border:"1px solid #10b981", color:"#10b981", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🏗️ Pre-Build Letter{selected.preBuildLetter?.homeownerSignature ? " ✓" : ""}</button>
+                    <button onClick={() => setLienNoticeOpen(true)} style={{ background:"#f9731622", border:"1px solid #f97316", color:"#fb923c", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>⚖️ Lien Notice{selected.lienNotice?.ownerSignature ? " ✓" : ""}</button>
+                    <button onClick={() => setCancellationNoticeOpen(true)} style={{ background:"#f8717122", border:"1px solid #f87171", color:"#f87171", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📄 Cancellation Notice{selected.cancellationNotice?.companySignature ? " ✓" : ""}</button>
+                    <button onClick={() => setDocsAckOpen(true)} style={{ background:"#e8a82022", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📋 Docs Acknowledgement{selected.docsAcknowledgement?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCommissionOpen(true)} style={{ background:GREEN+"22", border:`1px solid ${GREEN}`, color:GREEN, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>💰 Commission{selected.commission?.grossRevenue ? " ✓" : ""}</button>
                     <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
                     {selected.stage === "collected" && (
@@ -1034,20 +1043,27 @@ export default function Pipeline({ session }) {
 
       {/* RETAIL CONTRACT */}
       {retailContractOpen && selected && (
-        <RetailContract
-          job={selected}
-          onSave={(contractData) => { updateJob(selected.id, { retailContract: contractData }); }}
-          onClose={() => setRetailContractOpen(false)}
-        />
+        <RetailContract job={selected} onSave={(d) => { updateJob(selected.id, { retailContract: d }); }} onClose={() => setRetailContractOpen(false)} />
       )}
 
-      {/* PRE-BUILD PRECAUTION LETTER */}
+      {/* PRE-BUILD LETTER */}
       {preBuildLetterOpen && selected && (
-        <PreBuildLetter
-          job={selected}
-          onSave={(letterData) => { updateJob(selected.id, { preBuildLetter: letterData }); }}
-          onClose={() => setPreBuildLetterOpen(false)}
-        />
+        <PreBuildLetter job={selected} onSave={(d) => { updateJob(selected.id, { preBuildLetter: d }); }} onClose={() => setPreBuildLetterOpen(false)} />
+      )}
+
+      {/* LIEN NOTICE */}
+      {lienNoticeOpen && selected && (
+        <LienNotice job={selected} onSave={(d) => { updateJob(selected.id, { lienNotice: d }); }} onClose={() => setLienNoticeOpen(false)} />
+      )}
+
+      {/* CANCELLATION NOTICE */}
+      {cancellationNoticeOpen && selected && (
+        <CancellationNotice job={selected} onSave={(d) => { updateJob(selected.id, { cancellationNotice: d }); }} onClose={() => setCancellationNoticeOpen(false)} />
+      )}
+
+      {/* DOCS ACKNOWLEDGEMENT */}
+      {docsAckOpen && selected && (
+        <DocsAcknowledgement job={selected} onSave={(d) => { updateJob(selected.id, { docsAcknowledgement: d }); }} onClose={() => setDocsAckOpen(false)} />
       )}
 
       {/* CONTRACTOR AGREEMENT */}
