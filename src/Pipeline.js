@@ -3,6 +3,8 @@ import { supabase } from "./supabase";
 import ContractFill from "./ContractFill";
 import CommissionWorkbook from "./CommissionWorkbook";
 import ContractorAgreement from "./ContractorAgreement";
+import RetailContract from "./RetailContract";
+import PreBuildLetter from "./PreBuildLetter";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -316,6 +318,8 @@ export default function Pipeline({ session }) {
   const [contractFillOpen, setContractFillOpen] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [contractorAgreementOpen, setContractorAgreementOpen] = useState(false);
+  const [retailContractOpen, setRetailContractOpen] = useState(false);
+  const [preBuildLetterOpen, setPreBuildLetterOpen] = useState(false);
   const [abcFilter, setAbcFilter] = useState("All");
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
@@ -776,6 +780,8 @@ export default function Pipeline({ session }) {
                     <button onClick={() => openEdit(selected)} style={{ background:TEAL+"22", border:`1px solid ${TEAL}`, color:TEAL, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>✏️ Edit Job</button>
                     <button onClick={() => setContractorAgreementOpen(true)} style={{ background:"#8b5cf622", border:"1px solid #8b5cf6", color:"#a78bfa", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🤝 Inspection Agreement{selected.contractorAgreement?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setContractFillOpen(true)} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📝 Roofing Contract{selected.contract?.ownerSignature && selected.contract?.contractorSignature ? " ✓" : ""}</button>
+                    <button onClick={() => setRetailContractOpen(true)} style={{ background:"#0ea5e922", border:"1px solid #0ea5e9", color:"#38bdf8", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🧾 Retail Contract{selected.retailContract?.ownerSignature && selected.retailContract?.contractorSignature ? " ✓" : ""}</button>
+                    <button onClick={() => setPreBuildLetterOpen(true)} style={{ background:"#10b98122", border:"1px solid #10b981", color:"#10b981", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🏗️ Pre-Build Letter{selected.preBuildLetter?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCommissionOpen(true)} style={{ background:GREEN+"22", border:`1px solid ${GREEN}`, color:GREEN, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>💰 Commission{selected.commission?.grossRevenue ? " ✓" : ""}</button>
                     <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
                     {selected.stage === "collected" && (
@@ -919,38 +925,12 @@ export default function Pipeline({ session }) {
                   </div>
                   <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:8, paddingTop:8, borderTop:`1px solid ${BORDER}` }}>MN Required Documents</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                    {[
-                      { key:"lienNotice",       label:"MN Mandatory Lien Notice (§514.011)",      desc:"Required on all MN contracts — delivered & signed" },
-                      { key:"cancelNotice",     label:"Cancellation Notice (§326B.811)",           desc:"72-hr right to cancel — 2 copies given to homeowner" },
-                      { key:"docsAck",          label:"Contractor Documents Acknowledgement",      desc:"Homeowner receipt of all required documents" },
-                      { key:"preBuildLetter",   label:"Pre-Build Precaution Letter",               desc:"All 8 items initialed by homeowner" },
-                    ].map(doc => {
-                      const signed = selected.mnDocs?.[doc.key];
-                      return (
-                        <div key={doc.key} style={{ background:PANEL2, border:`1px solid ${signed ? TEAL : BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                          <div>
-                            <div style={{ fontSize:12, fontWeight:600, color: signed ? TEXT : MUTED }}>{doc.label}</div>
-                            <div style={{ fontSize:10, color:MUTED }}>{doc.desc}</div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const current = selected.mnDocs || {};
-                              updateJob(selected.id, { mnDocs: { ...current, [doc.key]: !signed } });
-                            }}
-                            style={{ fontSize:10, fontWeight:700, flexShrink:0, marginLeft:8, padding:"4px 10px", borderRadius:5, cursor:"pointer", fontFamily:"inherit", border:`1px solid ${signed ? TEAL : BORDER}`, background: signed ? TEAL+"22" : "transparent", color: signed ? TEAL : MUTED }}
-                          >
-                            {signed ? "✓ Done" : "Mark Done"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                    <div style={{ background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:600 }}>Certificate of Insurance</div>
-                        <div style={{ fontSize:10, color:MUTED }}>Berkley · ASP698081595-01 · Exp. 05/12/2027</div>
+                    {[{label:"MN Mandatory Lien Notice (§514.011)",desc:"Required on all contracts"},{label:"Cancellation Notice (§326B.811)",desc:"72-hr right to cancel"},{label:"Contractor Documents Acknowledgement",desc:"Homeowner receipt"},{label:"Pre-Build Precaution Letter",desc:"8 items initialed"},{label:"Certificate of Insurance",desc:"Berkley · ASP698081595-01 · Exp. 05/12/2027"}].map(doc => (
+                      <div key={doc.label} style={{ background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div><div style={{ fontSize:12, fontWeight:600 }}>{doc.label}</div><div style={{ fontSize:10, color:MUTED }}>{doc.desc}</div></div>
+                        <span style={{ fontSize:10, color:TEAL, fontWeight:700, background:TEAL+"22", borderRadius:4, padding:"2px 8px", flexShrink:0, marginLeft:8 }}>On File</span>
                       </div>
-                      <span style={{ fontSize:10, color:TEAL, fontWeight:700, background:TEAL+"22", borderRadius:4, padding:"2px 8px", flexShrink:0, marginLeft:8 }}>On File</span>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1049,6 +1029,24 @@ export default function Pipeline({ session }) {
           job={selected}
           onSave={(contractData) => updateJob(selected.id, { contract: contractData })}
           onClose={() => setContractFillOpen(false)}
+        />
+      )}
+
+      {/* RETAIL CONTRACT */}
+      {retailContractOpen && selected && (
+        <RetailContract
+          job={selected}
+          onSave={(contractData) => { updateJob(selected.id, { retailContract: contractData }); }}
+          onClose={() => setRetailContractOpen(false)}
+        />
+      )}
+
+      {/* PRE-BUILD PRECAUTION LETTER */}
+      {preBuildLetterOpen && selected && (
+        <PreBuildLetter
+          job={selected}
+          onSave={(letterData) => { updateJob(selected.id, { preBuildLetter: letterData }); }}
+          onClose={() => setPreBuildLetterOpen(false)}
         />
       )}
 
