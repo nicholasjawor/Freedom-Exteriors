@@ -919,12 +919,38 @@ export default function Pipeline({ session }) {
                   </div>
                   <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:8, paddingTop:8, borderTop:`1px solid ${BORDER}` }}>MN Required Documents</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                    {[{label:"MN Mandatory Lien Notice (§514.011)",desc:"Required on all contracts"},{label:"Cancellation Notice (§326B.811)",desc:"72-hr right to cancel"},{label:"Contractor Documents Acknowledgement",desc:"Homeowner receipt"},{label:"Pre-Build Precaution Letter",desc:"8 items initialed"},{label:"Certificate of Insurance",desc:"Berkley · ASP698081595-01 · Exp. 05/12/2027"}].map(doc => (
-                      <div key={doc.label} style={{ background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                        <div><div style={{ fontSize:12, fontWeight:600 }}>{doc.label}</div><div style={{ fontSize:10, color:MUTED }}>{doc.desc}</div></div>
-                        <span style={{ fontSize:10, color:TEAL, fontWeight:700, background:TEAL+"22", borderRadius:4, padding:"2px 8px", flexShrink:0, marginLeft:8 }}>On File</span>
+                    {[
+                      { key:"lienNotice",       label:"MN Mandatory Lien Notice (§514.011)",      desc:"Required on all MN contracts — delivered & signed" },
+                      { key:"cancelNotice",     label:"Cancellation Notice (§326B.811)",           desc:"72-hr right to cancel — 2 copies given to homeowner" },
+                      { key:"docsAck",          label:"Contractor Documents Acknowledgement",      desc:"Homeowner receipt of all required documents" },
+                      { key:"preBuildLetter",   label:"Pre-Build Precaution Letter",               desc:"All 8 items initialed by homeowner" },
+                    ].map(doc => {
+                      const signed = selected.mnDocs?.[doc.key];
+                      return (
+                        <div key={doc.key} style={{ background:PANEL2, border:`1px solid ${signed ? TEAL : BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:600, color: signed ? TEXT : MUTED }}>{doc.label}</div>
+                            <div style={{ fontSize:10, color:MUTED }}>{doc.desc}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const current = selected.mnDocs || {};
+                              updateJob(selected.id, { mnDocs: { ...current, [doc.key]: !signed } });
+                            }}
+                            style={{ fontSize:10, fontWeight:700, flexShrink:0, marginLeft:8, padding:"4px 10px", borderRadius:5, cursor:"pointer", fontFamily:"inherit", border:`1px solid ${signed ? TEAL : BORDER}`, background: signed ? TEAL+"22" : "transparent", color: signed ? TEAL : MUTED }}
+                          >
+                            {signed ? "✓ Done" : "Mark Done"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <div style={{ background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:600 }}>Certificate of Insurance</div>
+                        <div style={{ fontSize:10, color:MUTED }}>Berkley · ASP698081595-01 · Exp. 05/12/2027</div>
                       </div>
-                    ))}
+                      <span style={{ fontSize:10, color:TEAL, fontWeight:700, background:TEAL+"22", borderRadius:4, padding:"2px 8px", flexShrink:0, marginLeft:8 }}>On File</span>
+                    </div>
                   </div>
                 </div>
               )}
