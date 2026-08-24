@@ -1,8 +1,7 @@
 {
   "name": "freedom-exteriors",
   "version": "0.1.0",
-  "private": true,
- "type": "module", 
+  "private": true, 
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
     "@testing-library/dom": "^10.4.1",
