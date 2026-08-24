@@ -1,70 +1,68 @@
-# Getting Started with Create React App
+# Bid Mailer — CSV Import (Step 2)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 1. Unzip into your repo
+Unzip this so the folders land at the root of your existing repo (same level
+as `package.json`). It should merge in as:
 
-## Available Scripts
+```
+your-repo/
+  lib/csv-import/parseHailTraceCsv.js
+  scripts/import-hailtrace-csv.mjs
+  test-fixtures/sample_export.csv
+  test-fixtures/run-parser-test.mjs
+```
 
-In the project directory, you can run:
+## 2. Install dependencies
+```
+npm install papaparse @supabase/supabase-js
+```
 
-### `npm start`
+## 3. Make sure your repo's package.json has `"type": "module"`
+Open `package.json` and confirm this line exists at the top level:
+```json
+"type": "module",
+```
+(If it's already there — likely, since your CRM is React/Vercel — skip this.)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 4. Sanity-check the parser (no DB, no network, no risk)
+```
+node test-fixtures/run-parser-test.mjs
+```
+You should see 9/9 "PASS" lines. If anything fails, stop and paste the output
+back to me before going further.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 5. Dry-run against a REAL HailTrace export
+Export a storm event's addresses from HailTrace (Company Settings → Export
+Data), then:
+```
+node scripts/import-hailtrace-csv.mjs --file=./path/to/real_export.csv --campaign="Storm Name" --dry-run
+```
+Check the "Header map" it prints — confirm `address` (and ideally city/state/
+zip/homeowner name) all matched real columns. If `address` didn't match,
+open `lib/csv-import/parseHailTraceCsv.js`, find `HEADER_ALIASES`, and add
+your CSV's actual header text to the `address` array.
 
-### `npm test`
+## 6. Set your Supabase credentials
+Add to your `.env` (or Vercel project env vars):
+```
+SUPABASE_URL=https://klfrqwplazjryeppamtk.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<get this from Supabase dashboard → Project Settings → API → service_role key>
+```
+The service role key is secret — never expose it in frontend code, only in
+server-side scripts/env.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 7. Real import (writes to your database)
+Drop `--dry-run` once step 5 looks correct:
+```
+node scripts/import-hailtrace-csv.mjs --file=./path/to/real_export.csv --campaign="Storm Name"
+```
+It will create the campaign (or reuse one with that exact name), skip
+anything already imported for that campaign, and write a
+`*.skipped-report.csv` next to your source file listing anything it couldn't
+import and why.
 
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Known open item (not yet fixed — needs your decision)
+`mail_campaigns` and `mail_targets` currently have **Row Level Security
+disabled**, unlike the rest of your CRM's tables. That means the anon key can
+read/write every row until you enable it. Tell me what access rules you want
+(e.g. "service role only") and I'll apply it directly.
