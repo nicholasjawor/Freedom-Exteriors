@@ -85,6 +85,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
   const c = job.commission || {};
   const [local, setLocal] = useState({ ...c, tier: c.tier || 30 });
   const [savedFlash, setSavedFlash] = useState(false);
+  const [parActive, setParActive] = useState(!!job.parLead);
 
   const set = (key) => (val) => setLocal(prev => ({ ...prev, [key]: val }));
 
@@ -94,7 +95,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
     setTimeout(() => setSavedFlash(false), 1800);
   };
 
-  const r = calc(local, !!job.parLead);
+  const r = calc(local, parActive);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -178,6 +179,31 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
                 );
               })}
             </div>
+
+            {/* PAR toggle button */}
+            <button
+              onClick={() => setParActive(p => !p)}
+              style={{
+                width: "100%", marginTop: 10, padding: "12px 14px", borderRadius: 8,
+                fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: parActive ? "#22d3ee22" : PANEL2,
+                border: `1.5px solid ${parActive ? "#22d3ee" : BORDER}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 18 }}>📞</span>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: parActive ? "#22d3ee" : MUTED }}>PAR Lead — ProAct Resources</div>
+                  <div style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>Deducts 10.5% of commissionable net (35% of 30%)</div>
+                </div>
+              </div>
+              <div style={{
+                width: 42, height: 24, borderRadius: 12, padding: "2px", display: "flex", alignItems: "center",
+                background: parActive ? "#22d3ee" : BORDER, justifyContent: parActive ? "flex-end" : "flex-start", transition: "all 0.2s"
+              }}>
+                <div style={{ width: 20, height: 20, borderRadius: 10, background: "#fff" }} />
+              </div>
+            </button>
           </div>
 
           {/* Final commission */}
