@@ -29,6 +29,18 @@ const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual"
 const STATES = ["MN","WI","IA","SD","PA"];
 const STATE_COLORS = { MN: "#1a9e99", WI: "#e8a820", IA: "#a78bfa", SD: "#38bdf8", PA: "#fb923c" };
 const stateColor = s => STATE_COLORS[s] || "#6b8099";
+
+// Iowa MNLR notice of commencement: due within 10 days of starting work (Iowa Code § 572.13A)
+function iowaMNLRStatus(workStartDate) {
+  if (!workStartDate) return null;
+  const start = new Date(workStartDate + "T00:00:00");
+  if (isNaN(start.getTime())) return null;
+  const deadline = new Date(start.getTime() + 10 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const msLeft = deadline - now;
+  const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
+  return { deadline, daysLeft, overdue: daysLeft < 0 };
+}
 const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Misc"];
 
 const CHECKLIST_ITEMS = [
@@ -292,7 +304,7 @@ async function deleteJobRow(id) {
 const blank = () => ({
   id: Date.now(), name:"", address:"", city:"", state:"MN", phone:"", email:"",
   type:"Roof", stage:"lead", claimNum:"", insurer:"State Farm", adjuster:"", adjPhone:"",
-  hoverId:"", notes:"", followUp:false, assigned:"Me", parLead:false,
+  hoverId:"", notes:"", followUp:false, assigned:"Me", parLead:false, workStartDate:"",
   added: new Date().toISOString().slice(0,10),
   photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0},
   contract:null, commission:{grossRevenue:0},
@@ -600,6 +612,7 @@ export default function Pipeline({ session }) {
                         <div style={{ color:MUTED, fontSize:11, marginBottom:3 }}>{job.city}, <span style={{ color:stateColor(job.state), fontWeight:700 }}>{job.state}</span></div>
                         <span style={{ background:TEAL+"22", color:TEAL, borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:600 }}>{job.type}</span>
                         {job.parLead && <span style={{ background:"#22d3ee22", color:"#22d3ee", borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:700, marginLeft:4 }}>📞 PAR</span>}
+                        {job.state === "IA" && (() => { const s = iowaMNLRStatus(job.workStartDate); if (!s || (!s.overdue && s.daysLeft > 3)) return null; const c = s.overdue ? "#f87171" : "#e8a820"; return <span style={{ background:c+"22", color:c, borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:700, marginLeft:4 }}>📋 MNLR {s.overdue ? "OVERDUE" : `${s.daysLeft}d`}</span>; })()}
                         {job.estimate?.total > 0 && <div style={{ fontSize:10, color:"#10b981", marginTop:3, fontWeight:700 }}>${job.estimate.total.toLocaleString()}</div>}
                         {job.claimNum && <div style={{ fontSize:10, color:GOLD, marginTop:2, fontFamily:"monospace" }}>{job.claimNum}</div>}
                         <div style={{ marginTop:6 }}>
@@ -826,6 +839,33 @@ export default function Pipeline({ session }) {
                       </div>
                     </div>
                   )}
+                  {selected.state === "IA" && (() => {
+                    const s = iowaMNLRStatus(selected.workStartDate);
+                    if (!s) return (
+                      <div style={{ background:"#a78bfa11", border:"1px solid #a78bfa44", borderRadius:8, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ fontSize:18 }}>📋</span>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:12, color:"#a78bfa" }}>Iowa MNLR Filing — No Start Date Set</div>
+                          <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>Add a construction start date under Edit Job to get a 10-day filing countdown. Notice of Commencement must be posted to Iowa's MNLR (sos.iowa.gov/mnlr) within 10 days of starting work.</div>
+                        </div>
+                      </div>
+                    );
+                    const urgent = s.overdue || s.daysLeft <= 3;
+                    const color = s.overdue ? "#f87171" : urgent ? "#e8a820" : "#a78bfa";
+                    return (
+                      <div style={{ background:color+"14", border:`1px solid ${color}66`, borderRadius:8, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ fontSize:18 }}>{s.overdue ? "⚠️" : "📋"}</span>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:12, color }}>
+                            {s.overdue ? `Iowa MNLR Filing OVERDUE by ${Math.abs(s.daysLeft)} day${Math.abs(s.daysLeft)===1?"":"s"}` : `Iowa MNLR Filing Due in ${s.daysLeft} day${s.daysLeft===1?"":"s"}`}
+                          </div>
+                          <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>
+                            Deadline: {s.deadline.toLocaleDateString()} · Post Notice of Commencement at <a href="https://sos.iowa.gov/mnlr" target="_blank" rel="noopener noreferrer" style={{ color }}>sos.iowa.gov/mnlr ↗</a> (Iowa Code § 572.13A)
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {selected.notes && <div style={{ background:PANEL2, borderRadius:7, padding:"10px 12px", marginBottom:12 }}><div style={{ color:MUTED, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Notes</div><div style={{ fontSize:13, lineHeight:1.6 }}>{selected.notes}</div></div>}
 
                   {/* Stage buttons */}
@@ -1059,6 +1099,12 @@ export default function Pipeline({ session }) {
               </div>
               {form.hoverId && <a href={`https://hover.to/jobs/${form.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontSize:12, fontWeight:700, textDecoration:"none" }}>Open in Hover ↗</a>}
             </Sec>
+            {form.state === "IA" && (
+              <Sec title="Iowa MNLR Filing">
+                <F label="Construction Start Date" value={form.workStartDate} onChange={v => setForm(p=>({...p,workStartDate:v}))} type="date"/>
+                <div style={{ fontSize:11, color:"#a78bfa", marginTop:6, lineHeight:1.5 }}>Iowa requires a Notice of Commencement posted to the MNLR within 10 days of starting work (Iowa Code § 572.13A). Set the start date to get a countdown reminder on this job.</div>
+              </Sec>
+            )}
             <Sec title="Notes">
               <textarea value={form.notes} onChange={e => setForm(p=>({...p,notes:e.target.value}))} placeholder="Supplement details, material specs, special instructions..." rows={3}
                 style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"10px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box", resize:"vertical" }}/>
