@@ -6,22 +6,24 @@ const TEXT = "#e2eaf4"; const MUTED = "#6b8099"; const GREEN = "#10b981";
 
 const DEFAULT_PRICING = {
   // Base price per square (100 sq ft) for each tier
-  baseGood: 400,
-  baseBetter: 475,
-  baseBest: 575,
+  baseGood: 650,
+  baseBetter: 750,
+  baseBest: 850,
   // Pitch surcharge bands — % added to base, keyed by max pitch in the band (12 = 12/12)
+  // Based on MN roofing labor data: 3/12–8/12 is baseline walkable pitch; steeper
+  // pitches require roof jacks, then harnesses, then scaffolding as slope increases.
   pitchBands: [
-    { maxPitch: 4,  label: "0/12 – 4/12 (Low slope)",     pct: 0 },
-    { maxPitch: 7,  label: "5/12 – 7/12 (Standard)",      pct: 0 },
-    { maxPitch: 9,  label: "8/12 – 9/12 (Steep)",         pct: 10 },
-    { maxPitch: 12, label: "10/12 – 12/12 (Very steep)",  pct: 20 },
-    { maxPitch: 99, label: "13/12+ (Extreme)",            pct: 35 },
+    { maxPitch: 2,  label: "0/12 – 2/12 (Low slope — different underlayment)", pct: 20 },
+    { maxPitch: 8,  label: "3/12 – 8/12 (Standard, walkable)",                 pct: 0  },
+    { maxPitch: 10, label: "9/12 – 10/12 (Roof jacks required)",               pct: 15 },
+    { maxPitch: 12, label: "11/12 – 12/12 (Harness required)",                 pct: 25 },
+    { maxPitch: 99, label: "13/12+ (Scaffolding required)",                    pct: 45 },
   ],
-  // Story surcharge — % added to base
+  // Story surcharge — % added to base for staging, ladder time, and harness setup
   storyBands: [
-    { stories: 1, label: "1 Story",  pct: 0 },
-    { stories: 2, label: "2 Story",  pct: 8 },
-    { stories: 3, label: "3+ Story", pct: 18 },
+    { stories: 1, label: "1 Story",  pct: 0  },
+    { stories: 2, label: "2 Story",  pct: 12 },
+    { stories: 3, label: "3+ Story", pct: 25 },
   ],
   wasteFactorPct: 10, // % added to measured area for cuts/waste
 };
