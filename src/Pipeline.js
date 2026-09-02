@@ -9,6 +9,7 @@ import LienNotice from "./LienNotice";
 import CancellationNotice from "./CancellationNotice";
 import DocsAcknowledgement from "./DocsAcknowledgement";
 import SDCancellationNotice from "./SDCancellationNotice";
+import GoodBetterBest, { PricingSettings, DEFAULT_PRICING } from "./GoodBetterBest";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -307,6 +308,32 @@ async function deleteJobRow(id) {
   }
 }
 
+// Company-wide pricing config, stored under a reserved job_id (-1) so it survives
+// and syncs across devices without needing a separate database table.
+const PRICING_CONFIG_ID = -1;
+async function loadPricingConfig() {
+  try {
+    const { data, error } = await supabase.from("jobs").select("data").eq("job_id", PRICING_CONFIG_ID).maybeSingle();
+    if (error) throw error;
+    return data?.data?.pricing || DEFAULT_PRICING;
+  } catch (e) {
+    console.error("Failed to load pricing config:", e);
+    return DEFAULT_PRICING;
+  }
+}
+async function savePricingConfig(pricing) {
+  try {
+    const { error } = await supabase.from("jobs").upsert(
+      [{ job_id: PRICING_CONFIG_ID, user_email: "all", data: { id: PRICING_CONFIG_ID, pricing } }],
+      { onConflict: "job_id" }
+    );
+    if (error) throw error;
+  } catch (e) {
+    console.error("Failed to save pricing config:", e);
+    throw e;
+  }
+}
+
 const blank = () => ({
   id: Date.now(), name:"", address:"", city:"", state:"MN", phone:"", email:"",
   type:"Roof", stage:"lead", claimNum:"", insurer:"State Farm", adjuster:"", adjPhone:"",
@@ -347,23 +374,28 @@ export default function Pipeline({ session }) {
   const [cancellationNoticeOpen, setCancellationNoticeOpen] = useState(false);
   const [docsAckOpen, setDocsAckOpen] = useState(false);
   const [sdNoticeOpen, setSdNoticeOpen] = useState(false);
+  const [gbbOpen, setGbbOpen] = useState(false);
+  const [pricingSettingsOpen, setPricingSettingsOpen] = useState(false);
+  const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [abcFilter, setAbcFilter] = useState("All");
 
-  useEffect(() => { loadJobs().then(d => { setJobs(d); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
+  useEffect(() => { loadJobs().then(d => { setJobs(d.filter(j => j.id !== PRICING_CONFIG_ID)); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
+  useEffect(() => { loadPricingConfig().then(setPricing); }, []);
 
   // Manual re-sync from Supabase (also used by the 60s polling fallback)
   const resync = useCallback(async () => {
     setSaveStatus("saving");
     try {
       const fresh = await loadJobs();
-      if (fresh.length > 0 || jobs.length === 0) setJobs(fresh);
+      const cleaned = fresh.filter(j => j.id !== PRICING_CONFIG_ID);
+      if (cleaned.length > 0 || jobs.length === 0) setJobs(cleaned);
       setSaveStatus("saved");
     } catch { setSaveStatus("error"); }
   }, [jobs.length]);
 
   // Polling fallback — every 60s, re-fetch in case realtime dropped (common on iPhone Safari)
   useEffect(() => {
-    const t = setInterval(() => { loadJobs().then(fresh => { if (fresh.length) setJobs(fresh); }).catch(() => {}); }, 60000);
+    const t = setInterval(() => { loadJobs().then(fresh => { const cleaned = fresh.filter(j => j.id !== PRICING_CONFIG_ID); if (cleaned.length) setJobs(cleaned); }).catch(() => {}); }, 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -373,11 +405,12 @@ export default function Pipeline({ session }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (payload) => {
         if (payload.eventType === "DELETE") {
           const deletedId = payload.old?.job_id;
-          if (deletedId == null) return;
+          if (deletedId == null || deletedId === PRICING_CONFIG_ID) return;
           setJobs(prev => prev.filter(j => j.id !== deletedId));
         } else {
           const incoming = payload.new?.data;
           if (!incoming || incoming.id == null) return;
+          if (incoming.id === PRICING_CONFIG_ID) { if (incoming.pricing) setPricing(incoming.pricing); return; }
           setJobs(prev => {
             const exists = prev.some(j => j.id === incoming.id);
             return exists
@@ -450,6 +483,11 @@ export default function Pipeline({ session }) {
   };
 
   const removeJob = id => { setJobs(prev => prev.filter(j => j.id !== id)); deleteJobRow(id); setSelected(null); };
+
+  const savePricing = async (newPricing) => {
+    setPricing(newPricing);
+    try { await savePricingConfig(newPricing); } catch (e) { console.error(e); }
+  };
 
   const moveStage = (job, dir) => {
     const idx = STAGES.findIndex(s => s.id === job.stage);
@@ -562,6 +600,7 @@ export default function Pipeline({ session }) {
               🔔 {followUps.length}
             </button>
           )}
+          {!isMobile && isAdmin && <button onClick={() => setPricingSettingsOpen(true)} style={{ background:"none", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>📐 Pricing</button>}
           {!isMobile && <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QB</button>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{isMobile?"↪":"Sign Out"}</button>
           <button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:isMobile?"8px 14px":"8px 18px", fontWeight:800, fontSize:isMobile?12:13, cursor:"pointer", fontFamily:"inherit" }}>+ {isMobile?"New":"NEW JOB"}</button>
@@ -896,6 +935,7 @@ export default function Pipeline({ session }) {
                     {selected.state === "SD" && <button onClick={() => setSdNoticeOpen(true)} style={{ background:"#38bdf822", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📄 SD Cancellation Notice{selected.sdCancellationNotice?.copy1Signature && selected.sdCancellationNotice?.copy2Signature ? " ✓" : ""}</button>}
                     <button onClick={() => setDocsAckOpen(true)} style={{ background:"#e8a82022", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📋 Docs Acknowledgement{selected.docsAcknowledgement?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCommissionOpen(true)} style={{ background:GREEN+"22", border:`1px solid ${GREEN}`, color:GREEN, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>💰 Commission{selected.commission?.grossRevenue ? " ✓" : ""}</button>
+                    <button onClick={() => setGbbOpen(true)} style={{ background:"#fbbf2422", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📐 Good/Better/Best{selected.gbb?.sqFt ? " ✓" : ""}</button>
                     <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
                     {selected.stage === "collected" && (
                       <button onClick={async () => { const refreshToken = localStorage.getItem("qb_refresh_token"); if (refreshToken) { try { const refreshRes = await fetch("/api/quickbooks?action=refresh", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({refreshToken}) }); const refreshData = await refreshRes.json(); if (refreshData.access_token) { localStorage.setItem("qb_token", refreshData.access_token); localStorage.setItem("qb_refresh_token", refreshData.refresh_token); } } catch(e) { console.warn("Token refresh failed"); } } const res = await fetch("/api/quickbooks?action=invoice", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({realmId:localStorage.getItem("qb_realm"),accessToken:localStorage.getItem("qb_token"),job:selected}) }); const data = await res.json(); if (data.success) alert("Invoice created in QuickBooks!"); else alert("Error. Try reconnecting QuickBooks."); }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📊 QB Invoice</button>
@@ -1204,6 +1244,26 @@ export default function Pipeline({ session }) {
         />
       )}
 
+      {/* GOOD / BETTER / BEST PRICING */}
+      {gbbOpen && selected && (
+        <GoodBetterBest
+          job={selected}
+          pricing={pricing}
+          isAdmin={isAdmin}
+          onSave={(patch) => { updateJob(selected.id, patch); }}
+          onClose={() => setGbbOpen(false)}
+          onOpenSettings={() => setPricingSettingsOpen(true)}
+        />
+      )}
+
+      {/* PRICING SETTINGS (admin) */}
+      {pricingSettingsOpen && (
+        <PricingSettings
+          pricing={pricing}
+          onSave={(p) => { savePricing(p); }}
+          onClose={() => setPricingSettingsOpen(false)}
+        />
+      )}
 
       {/* LIGHTBOX */}
       {lightbox && (
