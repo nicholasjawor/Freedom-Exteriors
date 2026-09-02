@@ -26,7 +26,9 @@ const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
 const USERS = ["Nick", "Victor", "Brett"];
 const JOB_TYPES = ["Roof","Siding","Windows","Roof + Siding","Siding + Windows","Full Exterior"];
 const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual","American Family","Auto-Owners","USAA","Other","None / OOP"];
-const STATES = ["MN","WI"];
+const STATES = ["MN","WI","IA","SD","PA"];
+const STATE_COLORS = { MN: "#1a9e99", WI: "#e8a820", IA: "#a78bfa", SD: "#38bdf8", PA: "#fb923c" };
+const stateColor = s => STATE_COLORS[s] || "#6b8099";
 const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Misc"];
 
 const CHECKLIST_ITEMS = [
@@ -530,7 +532,7 @@ export default function Pipeline({ session }) {
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:isMobile?18:24, letterSpacing:3, lineHeight:1 }}>
             <span style={{ color:TEAL }}>FREEDOM </span><span style={{ color:GOLD }}>EXTERIORS</span>
           </div>
-          {!isMobile && <div style={{ fontSize:9, letterSpacing:3, color:TEAL, fontWeight:700, textTransform:"uppercase", marginTop:2 }}>Veteran Owned &amp; Operated · MN &amp; WI</div>}
+          {!isMobile && <div style={{ fontSize:9, letterSpacing:3, color:TEAL, fontWeight:700, textTransform:"uppercase", marginTop:2 }}>Veteran Owned &amp; Operated · MN · WI · IA · SD · PA</div>}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:8 }}>
           <button onClick={resync} title="Sync now" style={{ background:"none", border:`1px solid ${saveStatus==="error"?"#f87171":BORDER}`, color: saveStatus==="saved"?"#10b981":saveStatus==="saving"?GOLD:"#f87171", borderRadius:8, padding:isMobile?"6px 8px":"8px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -563,9 +565,12 @@ export default function Pipeline({ session }) {
           <button key={v.id} onClick={() => setMainView(v.id)} style={{ background:"none", border:"none", color:mainView===v.id?GOLD:MUTED, borderBottom:mainView===v.id?`2px solid ${GOLD}`:"2px solid transparent", padding:isMobile?"10px 12px":"12px 16px", cursor:"pointer", fontSize:isMobile?12:13, fontWeight:mainView===v.id?700:500, fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>{v.label}</button>
         ))}
         <div style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
-          {["all","MN","WI"].map(s => (
-            <button key={s} onClick={() => setFilterState(s)} style={{ background:filterState===s?(s==="WI"?GOLD:TEAL)+"22":"none", border:`1px solid ${filterState===s?(s==="WI"?GOLD:TEAL):BORDER}`, color:filterState===s?(s==="WI"?GOLD:TEAL):MUTED, borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s==="all"?"All":s}</button>
-          ))}
+          {["all",...STATES].map(s => {
+            const c = s === "all" ? TEAL : stateColor(s);
+            return (
+              <button key={s} onClick={() => setFilterState(s)} style={{ background:filterState===s?c+"22":"none", border:`1px solid ${filterState===s?c:BORDER}`, color:filterState===s?c:MUTED, borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{s==="all"?"All":s}</button>
+            );
+          })}
         </div>
       </nav>
 
@@ -592,7 +597,7 @@ export default function Pipeline({ session }) {
                           <div style={{ fontWeight:700, fontSize:12, flex:1, lineHeight:1.2 }}>{job.name}</div>
                           <button onClick={e => { e.stopPropagation(); toggleFollowUp(job.id); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:0 }}>{job.followUp?"🔔":"🔕"}</button>
                         </div>
-                        <div style={{ color:MUTED, fontSize:11, marginBottom:3 }}>{job.city}, <span style={{ color:job.state==="WI"?GOLD:TEAL, fontWeight:700 }}>{job.state}</span></div>
+                        <div style={{ color:MUTED, fontSize:11, marginBottom:3 }}>{job.city}, <span style={{ color:stateColor(job.state), fontWeight:700 }}>{job.state}</span></div>
                         <span style={{ background:TEAL+"22", color:TEAL, borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:600 }}>{job.type}</span>
                         {job.parLead && <span style={{ background:"#22d3ee22", color:"#22d3ee", borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:700, marginLeft:4 }}>📞 PAR</span>}
                         {job.estimate?.total > 0 && <div style={{ fontSize:10, color:"#10b981", marginTop:3, fontWeight:700 }}>${job.estimate.total.toLocaleString()}</div>}
@@ -640,7 +645,7 @@ export default function Pipeline({ session }) {
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
                       <div>
                         <div style={{ fontWeight:700, fontSize:15 }}>{job.name}</div>
-                        <div style={{ color:MUTED, fontSize:12 }}>{job.city}, <span style={{ color:job.state==="WI"?GOLD:TEAL, fontWeight:700 }}>{job.state}</span></div>
+                        <div style={{ color:MUTED, fontSize:12 }}>{job.city}, <span style={{ color:stateColor(job.state), fontWeight:700 }}>{job.state}</span></div>
                       </div>
                       <span style={{ background:s.color+"22", color:s.color, borderRadius:5, padding:"3px 8px", fontSize:11, fontWeight:700, flexShrink:0 }}>{s.icon} {s.label}</span>
                     </div>
@@ -676,7 +681,7 @@ export default function Pipeline({ session }) {
                         onMouseEnter={e => e.currentTarget.style.background=TEAL+"11"}
                         onMouseLeave={e => e.currentTarget.style.background=i%2===0?"transparent":PANEL2+"44"}>
                         <td style={{ padding:"10px 12px", fontWeight:700 }}>{job.name}</td>
-                        <td style={{ padding:"10px 12px", color:MUTED, fontSize:12 }}>{job.city}, <span style={{ color:job.state==="WI"?GOLD:TEAL, fontWeight:800 }}>{job.state}</span></td>
+                        <td style={{ padding:"10px 12px", color:MUTED, fontSize:12 }}>{job.city}, <span style={{ color:stateColor(job.state), fontWeight:800 }}>{job.state}</span></td>
                         <td style={{ padding:"10px 12px" }}><span style={{ background:TEAL+"22", color:TEAL, borderRadius:3, padding:"2px 7px", fontSize:11 }}>{job.type}</span></td>
                         <td style={{ padding:"10px 12px" }}><span style={{ background:s.color+"22", color:s.color, border:`1px solid ${s.color}44`, borderRadius:3, padding:"2px 7px", fontSize:11, fontWeight:600 }}>{s.icon} {s.label}</span></td>
                         <td style={{ padding:"10px 12px", fontWeight:700, color: job.estimate?.total>0?"#10b981":BORDER }}>{job.estimate?.total>0?`$${job.estimate.total.toLocaleString()}`:"—"}</td>
@@ -716,7 +721,7 @@ export default function Pipeline({ session }) {
               <div key={job.id} onClick={() => { setSelected(job); setJobTab("details"); }} style={{ background:PANEL, border:`1px solid ${BORDER}`, borderLeft:`4px solid ${GOLD}`, borderRadius:10, padding:"14px 18px", marginBottom:8, cursor:"pointer", display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:700, fontSize:15 }}>{job.name}</div>
-                  <div style={{ color:MUTED, fontSize:12, marginTop:2 }}>{job.city}, <span style={{ color:job.state==="WI"?GOLD:TEAL, fontWeight:700 }}>{job.state}</span> · {job.type}</div>
+                  <div style={{ color:MUTED, fontSize:12, marginTop:2 }}>{job.city}, <span style={{ color:stateColor(job.state), fontWeight:700 }}>{job.state}</span> · {job.type}</div>
                   <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
                     <span style={{ background:s.color+"22", color:s.color, borderRadius:3, padding:"2px 7px", fontSize:11 }}>{s.icon} {s.label}</span>
                     {job.claimNum && <span style={{ background:PANEL2, color:GOLD, borderRadius:3, padding:"2px 7px", fontSize:11, fontFamily:"monospace" }}>{job.claimNum}</span>}
@@ -785,7 +790,7 @@ export default function Pipeline({ session }) {
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                 <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
                   <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:isMobile?20:24, letterSpacing:1 }}>{selected.name}</div>
-                  <div style={{ color:MUTED, fontSize:12 }}>{selected.city}, <span style={{ color:selected.state==="WI"?GOLD:TEAL, fontWeight:700 }}>{selected.state}</span> · {selected.phone}</div>
+                  <div style={{ color:MUTED, fontSize:12 }}>{selected.city}, <span style={{ color:stateColor(selected.state), fontWeight:700 }}>{selected.state}</span> · {selected.phone}</div>
                 </div>
                 {(() => { const s = stageObj(selected.stage); return <span style={{ background:s.color+"22", color:s.color, border:`1px solid ${s.color}55`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, flexShrink:0 }}>{s.icon} {s.label}</span>; })()}
               </div>
