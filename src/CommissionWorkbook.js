@@ -9,7 +9,6 @@ const OP_ALLOC_PCT = 0.15;
 
 const TIERS = [
   { value: 30, label: "30%", desc: "Paid Lead / Entry Rep" },
-  { value: 35, label: "35%", desc: "Call Company Lead (PAR)", callCompany: true },
   { value: 40, label: "40%", desc: "Start-to-Finish, Own Lead" },
   { value: 50, label: "50%", desc: "Team Leader / $1M Sold" },
 ];
@@ -34,7 +33,7 @@ const COST_LINES = [
   { key: "other",          label: "Q. Other" },
 ];
 
-function calc(c) {
+function calc(c, isParLead) {
   const gross = parseFloat(c?.grossRevenue) || 0;
   const opAlloc = gross * OP_ALLOC_PCT;
   const netRev = gross - opAlloc;
@@ -44,11 +43,10 @@ function calc(c) {
   }, 0);
   const commNet = netRev - costs;
   const tier = parseFloat(c?.tier) || 30;
-  const isCallCompany = tier === 35;
   const commission = commNet * (tier / 100);
-  const callCompanyFee = isCallCompany ? commission : 0;
-  const repCommission = isCallCompany ? 0 : commission;
-  return { gross, opAlloc, netRev, costs, commNet, tier, commission, callCompanyFee, repCommission, isCallCompany };
+  const parFee = isParLead ? commNet * 0.105 : 0;
+  const repNet = commission - parFee;
+  return { gross, opAlloc, netRev, costs, commNet, tier, commission, parFee, repNet, isParLead };
 }
 
 function fmt(n) {
@@ -85,9 +83,7 @@ function CostInput({ label, value, onChange }) {
 
 export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
   const c = job.commission || {};
-  // Auto-set tier to 35 (PAR) if job is a PAR lead and no tier has been set yet
-  const defaultTier = job.parLead && !c.tier ? 35 : (c.tier || 30);
-  const [local, setLocal] = useState({ ...c, tier: defaultTier });
+  const [local, setLocal] = useState({ ...c, tier: c.tier || 30 });
   const [savedFlash, setSavedFlash] = useState(false);
 
   const set = (key) => (val) => setLocal(prev => ({ ...prev, [key]: val }));
@@ -98,7 +94,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
     setTimeout(() => setSavedFlash(false), 1800);
   };
 
-  const r = calc(local);
+  const r = calc(local, !!job.parLead);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -186,18 +182,22 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
 
           {/* Final commission */}
           <div style={{ background: `${GOLD}11`, border: `1px solid ${GOLD}44`, borderRadius: 10, padding: 18, textAlign: "center", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>U. Gross Commission (S × T)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>U. Rep Gross Commission (S × T)</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: r.commission >= 0 ? GOLD : "#f87171", fontFamily: "monospace" }}>{fmt(r.commission)}</div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{r.tier}% of {fmt(r.commNet)} commissionable net</div>
-            {r.isCallCompany && (
+            {r.isParLead && (
               <div style={{ marginTop: 14, borderTop: `1px solid ${GOLD}44`, paddingTop: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: "#f87171" }}>− PAR Fee (35% owed to ProAct Resources)</span>
-                  <span style={{ fontSize: 13, fontFamily: "monospace", color: "#f87171", fontWeight: 700 }}>− {fmt(r.callCompanyFee)}</span>
+                  <span style={{ fontSize: 12, color: "#f87171" }}>− PAR Fee (10.5% of net — 35% of 30%)</span>
+                  <span style={{ fontSize: 13, fontFamily: "monospace", color: "#f87171", fontWeight: 700 }}>− {fmt(r.parFee)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${TEAL}11`, border: `1px solid ${TEAL}44`, borderRadius: 7, padding: "10px 14px", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: TEAL }}>Rep Net Commission</span>
+                  <span style={{ fontSize: 20, fontFamily: "monospace", color: TEAL, fontWeight: 800 }}>{fmt(r.repNet)}</span>
                 </div>
                 <div style={{ background: "#22d3ee11", border: "1px solid #22d3ee44", borderRadius: 7, padding: "10px 14px", textAlign: "left" }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>⚠️ PAR Fee Due to ProAct Resources</div>
-                  <div style={{ fontSize: 11, color: MUTED, lineHeight: 1.6 }}>Per the ProAct Resources agreement (signed 09/01/2026), {fmt(r.callCompanyFee)} is owed to PAR within <strong style={{ color: TEXT }}>15 days of deposit</strong> or receipt of payment.</div>
+                  <div style={{ fontSize: 11, color: MUTED, lineHeight: 1.6 }}>Per the ProAct Resources agreement (signed 09/01/2026), <strong style={{ color: TEXT }}>{fmt(r.parFee)}</strong> is owed to PAR within <strong style={{ color: TEXT }}>15 days of deposit</strong> or receipt of payment.</div>
                 </div>
               </div>
             )}
@@ -212,7 +212,10 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
             <div>− Total Costs: <span style={{ color: "#f87171", fontFamily: "monospace" }}>{fmt(r.costs)}</span></div>
             <div>= Commissionable Net: <span style={{ color: GREEN, fontFamily: "monospace" }}>{fmt(r.commNet)}</span></div>
             <div>× Commission Tier ({r.tier}%): <span style={{ color: GOLD, fontFamily: "monospace", fontWeight: 700 }}>{fmt(r.commission)}</span></div>
-            {r.isCallCompany && <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 4 }}>− PAR Fee (35%): <span style={{ color: "#f87171", fontFamily: "monospace" }}>− {fmt(r.callCompanyFee)}</span></div>}
+            {r.isParLead && <>
+              <div>− PAR Fee (10.5% of net): <span style={{ color: "#f87171", fontFamily: "monospace" }}>− {fmt(r.parFee)}</span></div>
+              <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 4 }}>= Rep Net: <span style={{ color: TEAL, fontFamily: "monospace", fontWeight: 700 }}>{fmt(r.repNet)}</span></div>
+            </>}
           </div>
         </div>
 
