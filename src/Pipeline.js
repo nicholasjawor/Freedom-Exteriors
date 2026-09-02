@@ -264,19 +264,18 @@ async function loadJobs() {
   }
 }
 async function persistJobs(jobs) {
-  if (!jobs.length) return;
-  try {
-    const rows = jobs.map(j => ({
-      job_id: j.id,
-      user_email: "all",
-      data: j,
-      portal_token: j.portal_token || null,
-    }));
-    const { error } = await supabase.from("jobs").upsert(rows, { onConflict: "job_id" });
-    if (error) throw error;
-  } catch (e) {
-    console.error("Failed to save jobs:", e);
-    throw e;
+  const list = Array.isArray(jobs) ? jobs : [jobs];
+  if (!list.length) return;
+  const rows = list.map(j => ({
+    job_id: j.id,
+    user_email: "all",
+    data: j,
+    portal_token: j.portal_token || null,
+  }));
+  const { error } = await supabase.from("jobs").upsert(rows, { onConflict: "job_id" });
+  if (error) {
+    console.error("Failed to save jobs:", error);
+    throw error;
   }
 }
 async function deleteJobRow(id) {
@@ -308,6 +307,7 @@ export default function Pipeline({ session }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("saved");
+  const [saveError, setSaveError] = useState(null);
   const [mainView, setMainView] = useState("board");
   const [filterStage, setFilterStage] = useState("all");
   const [filterState, setFilterState] = useState("all");
@@ -330,6 +330,22 @@ export default function Pipeline({ session }) {
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
 
+  // Manual re-sync from Supabase (also used by the 60s polling fallback)
+  const resync = useCallback(async () => {
+    setSaveStatus("saving");
+    try {
+      const fresh = await loadJobs();
+      if (fresh.length > 0 || jobs.length === 0) setJobs(fresh);
+      setSaveStatus("saved");
+    } catch { setSaveStatus("error"); }
+  }, [jobs.length]);
+
+  // Polling fallback — every 60s, re-fetch in case realtime dropped (common on iPhone Safari)
+  useEffect(() => {
+    const t = setInterval(() => { loadJobs().then(fresh => { if (fresh.length) setJobs(fresh); }).catch(() => {}); }, 60000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     const channel = supabase
       .channel("jobs-live")
@@ -340,7 +356,7 @@ export default function Pipeline({ session }) {
           setJobs(prev => prev.filter(j => j.id !== deletedId));
         } else {
           const incoming = payload.new?.data;
-          if (!incoming) return;
+          if (!incoming || incoming.id == null) return;
           setJobs(prev => {
             const exists = prev.some(j => j.id === incoming.id);
             return exists
@@ -353,18 +369,33 @@ export default function Pipeline({ session }) {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const save = useCallback(async (next) => {
+  // Persist a single job (or a list) — targeted upsert, never touches other rows
+  const persistOne = useCallback(async (jobOrJobs) => {
     setSaveStatus("saving");
-    try { await persistJobs(next, session?.user?.email); setSaveStatus("saved"); }
-    catch { setSaveStatus("error"); }
+    try {
+      await persistJobs(jobOrJobs);
+      setSaveStatus("saved");
+      setSaveError(null);
+    } catch (e) {
+      setSaveStatus("error");
+      setSaveError(e?.message || "Save failed — check your connection and try again.");
+    }
   }, []);
 
-  const updateJobs = useCallback((updater) => {
-    setJobs(prev => { const next = typeof updater === "function" ? updater(prev) : updater; save(next); return next; });
-  }, [save]);
+  // Update local state, then persist only the changed job(s) — save runs OUTSIDE the state updater
+  const updateJobs = useCallback((updater, changedIds) => {
+    setJobs(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const toSave = changedIds
+        ? next.filter(j => changedIds.includes(j.id))
+        : next.filter(j => { const old = prev.find(p => p.id === j.id); return !old || JSON.stringify(old) !== JSON.stringify(j); });
+      if (toSave.length) queueMicrotask(() => persistOne(toSave));
+      return next;
+    });
+  }, [persistOne]);
 
   const updateJob = useCallback((id, patch) => {
-    updateJobs(prev => prev.map(j => j.id === id ? { ...j, ...patch } : j));
+    updateJobs(prev => prev.map(j => j.id === id ? { ...j, ...patch } : j), [id]);
     setSelected(prev => prev?.id === id ? { ...prev, ...patch } : prev);
   }, [updateJobs]);
 
@@ -388,7 +419,7 @@ export default function Pipeline({ session }) {
     const isNew = !editing;
     const token = form.id + "-" + Math.random().toString(36).slice(2,8);
     const jobWithToken = isNew ? { ...form, portal_token: token } : form;
-    updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken]);
+    updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken], [jobWithToken.id]);
     if (isNew && form.email) {
       const portalLink = window.location.origin + "/portal/" + token;
       if (isNew && form.phone) { fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! Freedom Exteriors here. We have received your project info. Track your progress here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e)); }
@@ -397,7 +428,7 @@ export default function Pipeline({ session }) {
     setShowForm(false);
   };
 
-  const removeJob = id => { updateJobs(prev => prev.filter(j => j.id !== id)); deleteJobRow(id); setSelected(null); };
+  const removeJob = id => { setJobs(prev => prev.filter(j => j.id !== id)); deleteJobRow(id); setSelected(null); };
 
   const moveStage = (job, dir) => {
     const idx = STAGES.findIndex(s => s.id === job.stage);
@@ -502,9 +533,9 @@ export default function Pipeline({ session }) {
           {!isMobile && <div style={{ fontSize:9, letterSpacing:3, color:TEAL, fontWeight:700, textTransform:"uppercase", marginTop:2 }}>Veteran Owned &amp; Operated · MN &amp; WI</div>}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:8 }}>
-          <span style={{ fontSize:10, color: saveStatus==="saved"?"#10b981":saveStatus==="saving"?GOLD:"#f87171", fontWeight:600 }}>
-            {saveStatus==="saved"?"☁":saveStatus==="saving"?"⟳":"⚠"}
-          </span>
+          <button onClick={resync} title="Sync now" style={{ background:"none", border:`1px solid ${saveStatus==="error"?"#f87171":BORDER}`, color: saveStatus==="saved"?"#10b981":saveStatus==="saving"?GOLD:"#f87171", borderRadius:8, padding:isMobile?"6px 8px":"8px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {saveStatus==="saved"?"☁ Synced":saveStatus==="saving"?"⟳ Saving…":"⚠ Retry"}
+          </button>
           {followUps.length > 0 && (
             <button onClick={() => setMainView("followups")} style={{ background:"#7c2d1233", border:"1px solid #f9731688", color:"#fed7aa", borderRadius:20, padding:`4px ${isMobile?8:12}px`, fontSize:isMobile?11:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               🔔 {followUps.length}
@@ -515,6 +546,16 @@ export default function Pipeline({ session }) {
           <button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:isMobile?"8px 14px":"8px 18px", fontWeight:800, fontSize:isMobile?12:13, cursor:"pointer", fontFamily:"inherit" }}>+ {isMobile?"New":"NEW JOB"}</button>
         </div>
       </header>
+
+      {/* SAVE ERROR BANNER — visible, not just an icon */}
+      {saveStatus === "error" && (
+        <div style={{ background:"#7c2d12", borderBottom:"1px solid #f87171", padding:"10px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+          <div style={{ fontSize:13, color:"#fed7aa" }}>
+            <strong>⚠ Save failed.</strong> {saveError || "Your last change may not have been saved."} Changes on screen are not confirmed in the database.
+          </div>
+          <button onClick={resync} style={{ background:"#f87171", color:"#000", border:"none", borderRadius:6, padding:"6px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>Reload from server</button>
+        </div>
+      )}
 
       {/* NAV */}
       <nav style={{ background:PANEL2, borderBottom:`1px solid ${BORDER}`, padding:`0 ${isMobile?8:20}px`, display:"flex", alignItems:"center", gap:2, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
