@@ -291,7 +291,7 @@ async function deleteJobRow(id) {
 const blank = () => ({
   id: Date.now(), name:"", address:"", city:"", state:"MN", phone:"", email:"",
   type:"Roof", stage:"lead", claimNum:"", insurer:"State Farm", adjuster:"", adjPhone:"",
-  hoverId:"", notes:"", followUp:false, assigned:"Me",
+  hoverId:"", notes:"", followUp:false, assigned:"Me", parLead:false,
   added: new Date().toISOString().slice(0,10),
   photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0},
   contract:null, commission:{grossRevenue:0},
@@ -553,6 +553,7 @@ export default function Pipeline({ session }) {
                         </div>
                         <div style={{ color:MUTED, fontSize:11, marginBottom:3 }}>{job.city}, <span style={{ color:job.state==="WI"?GOLD:TEAL, fontWeight:700 }}>{job.state}</span></div>
                         <span style={{ background:TEAL+"22", color:TEAL, borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:600 }}>{job.type}</span>
+                        {job.parLead && <span style={{ background:"#22d3ee22", color:"#22d3ee", borderRadius:3, padding:"1px 6px", fontSize:10, fontWeight:700, marginLeft:4 }}>📞 PAR</span>}
                         {job.estimate?.total > 0 && <div style={{ fontSize:10, color:"#10b981", marginTop:3, fontWeight:700 }}>${job.estimate.total.toLocaleString()}</div>}
                         {job.claimNum && <div style={{ fontSize:10, color:GOLD, marginTop:2, fontFamily:"monospace" }}>{job.claimNum}</div>}
                         <div style={{ marginTop:6 }}>
@@ -770,6 +771,15 @@ export default function Pipeline({ session }) {
                       {selected.hoverId ? <a href={`https://hover.to/jobs/${selected.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontFamily:"monospace", fontSize:12, fontWeight:700, textDecoration:"none" }}>{selected.hoverId} ↗</a> : <div style={{ color:BORDER, fontSize:11 }}>Not linked</div>}
                     </div>
                   </div>
+                  {selected.parLead && (
+                    <div style={{ background:"#22d3ee11", border:"1px solid #22d3ee44", borderRadius:8, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:18 }}>📞</span>
+                      <div>
+                        <div style={{ fontWeight:700, fontSize:12, color:"#22d3ee" }}>ProAct Resources (PAR) Lead</div>
+                        <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>35% of gross commission owed to PAR within 15 days of deposit. Commission Workbook will auto-set to PAR tier.</div>
+                      </div>
+                    </div>
+                  )}
                   {selected.notes && <div style={{ background:PANEL2, borderRadius:7, padding:"10px 12px", marginBottom:12 }}><div style={{ color:MUTED, fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Notes</div><div style={{ fontSize:13, lineHeight:1.6 }}>{selected.notes}</div></div>}
 
                   {/* Stage buttons */}
@@ -1007,9 +1017,13 @@ export default function Pipeline({ session }) {
               <textarea value={form.notes} onChange={e => setForm(p=>({...p,notes:e.target.value}))} placeholder="Supplement details, material specs, special instructions..." rows={3}
                 style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"10px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box", resize:"vertical" }}/>
             </Sec>
-            <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:20, fontSize:13 }}>
+            <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:10, fontSize:13 }}>
               <input type="checkbox" checked={form.followUp} onChange={e => setForm(p=>({...p,followUp:e.target.checked}))} style={{ width:18, height:18, accentColor:GOLD }}/>
               <span>🔔 Flag for follow-up</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:20, fontSize:13, background:form.parLead?"#22d3ee11":"transparent", border:`1px solid ${form.parLead?"#22d3ee":"transparent"}`, borderRadius:7, padding: form.parLead?"8px 12px":"0" }}>
+              <input type="checkbox" checked={!!form.parLead} onChange={e => setForm(p=>({...p,parLead:e.target.checked}))} style={{ width:18, height:18, accentColor:"#22d3ee" }}/>
+              <span style={{ color: form.parLead ? "#22d3ee" : TEXT }}>📞 PAR Lead — ProAct Resources {form.parLead && <span style={{ fontSize:11, color:"#22d3ee", marginLeft:4 }}>(35% commission fee owed to PAR on close)</span>}</span>
             </label>
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
               <button onClick={() => setShowForm(false)} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:7, padding:"11px 18px", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Cancel</button>
