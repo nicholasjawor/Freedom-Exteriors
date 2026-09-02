@@ -8,6 +8,7 @@ import PreBuildLetter from "./PreBuildLetter";
 import LienNotice from "./LienNotice";
 import CancellationNotice from "./CancellationNotice";
 import DocsAcknowledgement from "./DocsAcknowledgement";
+import SDCancellationNotice from "./SDCancellationNotice";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -24,7 +25,12 @@ const STAGES = [
 ];
 const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
 const USERS = ["Nick", "Victor", "Brett"];
-const JOB_TYPES = ["Roof","Siding","Windows","Roof + Siding","Siding + Windows","Full Exterior"];
+const JOB_TYPES = [
+  "Roof", "Siding", "Windows", "Doors", "Gutters", "Fascia", "Soffit",
+  "Roof + Siding", "Roof + Gutters", "Siding + Windows", "Siding + Gutters",
+  "Gutters + Fascia + Soffit", "Full Exterior",
+  "Repair", "Exterior Misc",
+];
 const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual","American Family","Auto-Owners","USAA","Other","None / OOP"];
 const STATES = ["MN","WI","IA","SD","PA"];
 const STATE_COLORS = { MN: "#1a9e99", WI: "#e8a820", IA: "#a78bfa", SD: "#38bdf8", PA: "#fb923c" };
@@ -340,6 +346,7 @@ export default function Pipeline({ session }) {
   const [lienNoticeOpen, setLienNoticeOpen] = useState(false);
   const [cancellationNoticeOpen, setCancellationNoticeOpen] = useState(false);
   const [docsAckOpen, setDocsAckOpen] = useState(false);
+  const [sdNoticeOpen, setSdNoticeOpen] = useState(false);
   const [abcFilter, setAbcFilter] = useState("All");
 
   useEffect(() => { loadJobs().then(d => { setJobs(d); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
@@ -886,6 +893,7 @@ export default function Pipeline({ session }) {
                     <button onClick={() => setPreBuildLetterOpen(true)} style={{ background:"#10b98122", border:"1px solid #10b981", color:"#10b981", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🏗️ Pre-Build Letter{selected.preBuildLetter?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setLienNoticeOpen(true)} style={{ background:"#f9731622", border:"1px solid #f97316", color:"#fb923c", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>⚖️ Lien Notice{selected.lienNotice?.ownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCancellationNoticeOpen(true)} style={{ background:"#f8717122", border:"1px solid #f87171", color:"#f87171", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📄 Cancellation Notice{selected.cancellationNotice?.companySignature ? " ✓" : ""}</button>
+                    {selected.state === "SD" && <button onClick={() => setSdNoticeOpen(true)} style={{ background:"#38bdf822", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📄 SD Cancellation Notice{selected.sdCancellationNotice?.copy1Signature && selected.sdCancellationNotice?.copy2Signature ? " ✓" : ""}</button>}
                     <button onClick={() => setDocsAckOpen(true)} style={{ background:"#e8a82022", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📋 Docs Acknowledgement{selected.docsAcknowledgement?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCommissionOpen(true)} style={{ background:GREEN+"22", border:`1px solid ${GREEN}`, color:GREEN, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>💰 Commission{selected.commission?.grossRevenue ? " ✓" : ""}</button>
                     <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
@@ -1165,6 +1173,11 @@ export default function Pipeline({ session }) {
       {/* CANCELLATION NOTICE */}
       {cancellationNoticeOpen && selected && (
         <CancellationNotice job={selected} onSave={(d) => { updateJob(selected.id, { cancellationNotice: d }); }} onClose={() => setCancellationNoticeOpen(false)} />
+      )}
+
+      {/* SD CANCELLATION NOTICE */}
+      {sdNoticeOpen && selected && (
+        <SDCancellationNotice job={selected} onSave={(d) => { updateJob(selected.id, { sdCancellationNotice: d }); }} onClose={() => setSdNoticeOpen(false)} />
       )}
 
       {/* DOCS ACKNOWLEDGEMENT */}

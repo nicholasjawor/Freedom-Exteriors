@@ -1,0 +1,7 @@
+Property Address,City,State,Zip Code,Owner Name,Latitude,Longitude
+"123 Main St, Unit 4",Springfield,MO,65801,John Carter,37.2153,-93.2982
+456 Oak Ave,Springfield,MO,65802,,,
+456 Oak Ave,Springfield,MO,65802,Duplicate Owner,,
+789 Elm St,Nixa,MO,65714,Maria Gomez,,
+,Republic,MO,65738,No Address Owner,,
+   321 Pine Rd   ,Ozark,MO,65721,  Dave  Lee ,36.9987,-93.2077
