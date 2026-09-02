@@ -43,18 +43,44 @@ export default async function handler(req, res) {
       weightedPitchSum += areaM2 * pitchDeg;
     });
     const avgPitchDeg = totalAreaM2 > 0 ? weightedPitchSum / totalAreaM2 : 0;
-    const totalAreaSqFt = totalAreaM2 * 10.7639;
+    const rawTotalAreaSqFt = totalAreaM2 * 10.7639;
     const pitchRisePerTwelve = Math.round(Math.tan(avgPitchDeg * Math.PI / 180) * 12 * 10) / 10;
+
+    const imageryQuality = solarData.imageryQuality || null;
+
+    // Geometric floor check: a pitched roof can never be smaller than
+    // footprint / cos(pitch). If Google's segment sum comes in under that,
+    // real roof area is being missed — substitute the mathematical floor.
+    const groundAreaM2 = solarData.solarPotential?.buildingStats?.groundAreaMeters2 || null;
+    let totalAreaSqFt = rawTotalAreaSqFt;
+    let corrected = false;
+    let floorAreaSqFt = null;
+    if (groundAreaM2 && avgPitchDeg > 0) {
+      const footprintSqFt = groundAreaM2 * 10.7639;
+      const pitchRad = avgPitchDeg * Math.PI / 180;
+      floorAreaSqFt = footprintSqFt / Math.cos(pitchRad);
+      if (floorAreaSqFt > rawTotalAreaSqFt) {
+        totalAreaSqFt = floorAreaSqFt;
+        corrected = true;
+      }
+    }
+
+    // Low-confidence signal: few segments, poor imagery, or (now) a corrected estimate
+    const lowConfidence = segments.length <= 5 || imageryQuality === "LOW" || imageryQuality === "BASE" || corrected;
 
     return res.status(200).json({
       success: true,
       lat, lng,
       totalAreaSqFt: Math.round(totalAreaSqFt),
+      rawSegmentAreaSqFt: Math.round(rawTotalAreaSqFt),
+      floorAreaSqFt: floorAreaSqFt ? Math.round(floorAreaSqFt) : null,
+      corrected,
       avgPitchDegrees: Math.round(avgPitchDeg * 10) / 10,
       pitchRisePerTwelve,
       segmentCount: segments.length,
+      imageryQuality,
+      lowConfidence,
       imageryDate: solarData.imageryDate || null,
-      imageryQuality: solarData.imageryQuality || null,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

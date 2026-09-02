@@ -40,8 +40,6 @@ export default function QuickQuote({ pricing, onClose }) {
 
   const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing });
 
-  const LOW_SEGMENT_THRESHOLD = 5; // Google Solar detecting this few facets usually means it's smoothing over real roof complexity, not that the roof is actually simple
-
   const autoFillFromGoogle = async () => {
     if (!address || !city || !state) { setFetchError("Enter an address, city, and state first."); return; }
     setFetching(true);
@@ -54,12 +52,15 @@ export default function QuickQuote({ pricing, onClose }) {
       if (!res.ok || !data.success) { setFetchError(data.error || "Couldn't fetch roof data for this address."); setFetching(false); return; }
       setSqFt(data.totalAreaSqFt);
       setPitch(data.pitchRisePerTwelve);
-      const flagged = data.segmentCount <= LOW_SEGMENT_THRESHOLD;
-      setLowConfidence(flagged);
+      setLowConfidence(data.lowConfidence);
       const base = `Pulled ${data.totalAreaSqFt.toLocaleString()} sq ft across ${data.segmentCount} roof segment${data.segmentCount===1?"":"s"} · avg pitch ${data.pitchRisePerTwelve}/12${data.imageryDate ? ` · imagery from ${data.imageryDate.year}` : ""}.`;
-      setFetchInfo(flagged
-        ? `${base} ⚠️ Only ${data.segmentCount} facet${data.segmentCount===1?"":"s"} detected — Google likely missed real roof complexity on this one. Treat this number as low-confidence and verify with Hover before quoting.`
-        : `${base} Verify against the actual roof — this is a satellite estimate, not a measured takeoff.`);
+      if (data.corrected) {
+        setFetchInfo(`⚠️ Google's raw detection (${data.rawSegmentAreaSqFt.toLocaleString()} sq ft) was smaller than what's geometrically possible for a roof at this pitch on this footprint — bumped to ${data.totalAreaSqFt.toLocaleString()} sq ft as a mathematical floor. Real complexity is likely still higher. Verify with Hover.`);
+      } else if (data.lowConfidence) {
+        setFetchInfo(`${base} ⚠️ ${data.imageryQuality === "LOW" || data.imageryQuality === "BASE" ? `Imagery quality is ${data.imageryQuality}` : `Only ${data.segmentCount} facet${data.segmentCount===1?"":"s"} detected`} — treat this as low-confidence and verify with Hover before quoting.`);
+      } else {
+        setFetchInfo(`${base} Verify against the actual roof — this is a satellite estimate, not a measured takeoff.`);
+      }
     } catch (e) {
       setFetchError("Network error reaching the roof data service.");
     }
