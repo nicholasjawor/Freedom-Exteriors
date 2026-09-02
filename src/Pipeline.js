@@ -10,6 +10,7 @@ import CancellationNotice from "./CancellationNotice";
 import DocsAcknowledgement from "./DocsAcknowledgement";
 import SDCancellationNotice from "./SDCancellationNotice";
 import GoodBetterBest, { PricingSettings, DEFAULT_PRICING } from "./GoodBetterBest";
+import QuickQuote from "./QuickQuote";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -376,6 +377,7 @@ export default function Pipeline({ session }) {
   const [sdNoticeOpen, setSdNoticeOpen] = useState(false);
   const [gbbOpen, setGbbOpen] = useState(false);
   const [pricingSettingsOpen, setPricingSettingsOpen] = useState(false);
+  const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [abcFilter, setAbcFilter] = useState("All");
 
@@ -601,6 +603,7 @@ export default function Pipeline({ session }) {
             </button>
           )}
           {!isMobile && isAdmin && <button onClick={() => setPricingSettingsOpen(true)} style={{ background:"none", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>📐 Pricing</button>}
+          {!isMobile && isAdmin && <button onClick={() => setQuickQuoteOpen(true)} style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧮 Quick Quote</button>}
           {!isMobile && <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QB</button>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{isMobile?"↪":"Sign Out"}</button>
           <button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:isMobile?"8px 14px":"8px 18px", fontWeight:800, fontSize:isMobile?12:13, cursor:"pointer", fontFamily:"inherit" }}>+ {isMobile?"New":"NEW JOB"}</button>
@@ -1262,6 +1265,14 @@ export default function Pipeline({ session }) {
           pricing={pricing}
           onSave={(p) => { savePricing(p); }}
           onClose={() => setPricingSettingsOpen(false)}
+        />
+      )}
+
+      {/* QUICK QUOTE (admin, no job required) */}
+      {quickQuoteOpen && (
+        <QuickQuote
+          pricing={pricing}
+          onClose={() => setQuickQuoteOpen(false)}
         />
       )}
 
