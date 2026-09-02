@@ -36,21 +36,30 @@ export default function QuickQuote({ pricing, onClose }) {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
   const [fetchInfo, setFetchInfo] = useState(null);
+  const [lowConfidence, setLowConfidence] = useState(false);
 
   const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing });
+
+  const LOW_SEGMENT_THRESHOLD = 5; // Google Solar detecting this few facets usually means it's smoothing over real roof complexity, not that the roof is actually simple
 
   const autoFillFromGoogle = async () => {
     if (!address || !city || !state) { setFetchError("Enter an address, city, and state first."); return; }
     setFetching(true);
     setFetchError(null);
     setFetchInfo(null);
+    setLowConfidence(false);
     try {
       const res = await fetch(`/api/solar?address=${encodeURIComponent(address)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}`);
       const data = await res.json();
       if (!res.ok || !data.success) { setFetchError(data.error || "Couldn't fetch roof data for this address."); setFetching(false); return; }
       setSqFt(data.totalAreaSqFt);
       setPitch(data.pitchRisePerTwelve);
-      setFetchInfo(`Pulled ${data.totalAreaSqFt.toLocaleString()} sq ft across ${data.segmentCount} roof segment${data.segmentCount===1?"":"s"} · avg pitch ${data.pitchRisePerTwelve}/12${data.imageryDate ? ` · imagery from ${data.imageryDate.year}` : ""}. Verify against the actual roof — this is a satellite estimate, not a measured takeoff.`);
+      const flagged = data.segmentCount <= LOW_SEGMENT_THRESHOLD;
+      setLowConfidence(flagged);
+      const base = `Pulled ${data.totalAreaSqFt.toLocaleString()} sq ft across ${data.segmentCount} roof segment${data.segmentCount===1?"":"s"} · avg pitch ${data.pitchRisePerTwelve}/12${data.imageryDate ? ` · imagery from ${data.imageryDate.year}` : ""}.`;
+      setFetchInfo(flagged
+        ? `${base} ⚠️ Only ${data.segmentCount} facet${data.segmentCount===1?"":"s"} detected — Google likely missed real roof complexity on this one. Treat this number as low-confidence and verify with Hover before quoting.`
+        : `${base} Verify against the actual roof — this is a satellite estimate, not a measured takeoff.`);
     } catch (e) {
       setFetchError("Network error reaching the roof data service.");
     }
@@ -91,7 +100,17 @@ export default function QuickQuote({ pricing, onClose }) {
           </div>
           <div style={{ fontSize: 11, color: MUTED, marginBottom: 14 }}>Instant satellite estimate — good for a driveway quote. For a formal contract, verify with Hover.</div>
           {fetchError && <div style={{ background: "#7c2d1222", border: "1px solid #f8717166", borderRadius: 7, padding: "8px 12px", fontSize: 12, color: "#fca5a5", marginBottom: 12 }}>⚠️ {fetchError}</div>}
-          {fetchInfo && <div style={{ background: "#4285f411", border: "1px solid #4285f444", borderRadius: 7, padding: "8px 12px", fontSize: 11.5, color: "#93c5fd", marginBottom: 12, lineHeight: 1.5 }}>🛰️ {fetchInfo}</div>}
+          {fetchInfo && (
+            <div style={{
+              background: lowConfidence ? "#e8a82018" : "#4285f411",
+              border: `1px solid ${lowConfidence ? "#e8a82077" : "#4285f444"}`,
+              borderRadius: 7, padding: "8px 12px", fontSize: 11.5,
+              color: lowConfidence ? "#fbbf24" : "#93c5fd",
+              marginBottom: 12, lineHeight: 1.5, fontWeight: lowConfidence ? 600 : 400
+            }}>
+              🛰️ {fetchInfo}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <Field label="Roof Area" value={sqFt} onChange={setSqFt} suffix="sq ft" />
             <Field label="Pitch (rise/12)" value={pitch} onChange={setPitch} suffix="/12" />
