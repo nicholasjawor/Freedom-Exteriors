@@ -17,7 +17,7 @@ const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
 const TEXT = "#e2eaf4"; const MUTED = "#6b8099"; const GREEN = "#10b981";
 
 const STAGES = [
-  { id: "lead",       label: "New Lead",    color: "#64748b", icon: "📥" },
+  { id: "lead",       label: "New Customer",    color: "#64748b", icon: "📥" },
   { id: "inspection", label: "Inspection",  color: "#0ea5e9", icon: "🔍" },
   { id: "claim",      label: "Claim Filed", color: "#8b5cf6", icon: "📋" },
   { id: "approved",   label: "Approved",    color: GOLD,      icon: "✅" },

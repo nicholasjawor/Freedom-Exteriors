@@ -6,7 +6,7 @@ const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
 const TEXT = "#e2eaf4"; const MUTED = "#6b8099";
 
 const STAGES = [
-  { id: "lead",       label: "New Lead",    icon: "📥" },
+  { id: "lead",       label: "New Customer",    icon: "📥" },
   { id: "inspection", label: "Inspection",  icon: "🔍" },
   { id: "claim",      label: "Claim Filed", icon: "📋" },
   { id: "approved",   label: "Approved",    icon: "✅" },
