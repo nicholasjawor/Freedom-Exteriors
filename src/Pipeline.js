@@ -27,6 +27,66 @@ const STAGES = [
   { id: "collected",  label: "Paid in Full",   color: "#10b981", icon: "💰" },
 ];
 const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
+const REP_EMAILS = { Nick: "nick@freedom-exteriors.com", Victor: "victor@freedom-exteriors.com", Brett: "brett@freedom-exteriors.com" };
+
+// Fields a rep fills in during an inspection/sales visit, mapped to job schema keys.
+// Order here = order in the email template AND the paste-in preview.
+const REP_FIELDS = [
+  { label: "ADJUSTER NAME",   key: "adjuster" },
+  { label: "ADJUSTER PHONE",  key: "adjPhone" },
+  { label: "HOVER ID",        key: "hoverId" },
+  { label: "ESTIMATE TOTAL",  key: "estimate.total",       numeric: true },
+  { label: "DOWN PAYMENT",    key: "estimate.downPayment", numeric: true },
+  { label: "DEDUCTIBLE",      key: "estimate.deductible",  numeric: true },
+  { label: "NOTES",           key: "notes", multiline: true },
+];
+
+function buildRepEmail(job) {
+  const to = REP_EMAILS[job.assigned] || "";
+  const subject = `Job Info Needed — ${job.name} (${job.address}, ${job.city})`;
+  const known = [
+    ["CUSTOMER NAME", job.name], ["ADDRESS", job.address], ["CITY", job.city], ["STATE", job.state],
+    ["PHONE", job.phone], ["EMAIL", job.email], ["JOB TYPE", job.type],
+    ["CLAIM NUMBER", job.claimNum || "N/A"], ["INSURER", job.insurer],
+  ].map(([l, v]) => `${l}: ${v || ""}`).join("\n");
+  const blanks = REP_FIELDS.map(f => `${f.label}: `).join("\n");
+  const body =
+`FREEDOM EXTERIORS — JOB INFO REQUEST
+====================================
+Reply to this email with the fields below filled in. Don't remove or rename the labels — the office pastes this back into the CRM as-is.
+
+--- FOR YOUR REFERENCE (already on file) ---
+${known}
+
+--- FILL IN AND REPLY ---
+${blanks}
+`;
+  return { to, subject, body };
+}
+
+function parseRepEmail(text) {
+  const result = {};
+  const lines = text.split("\n");
+  for (let i = 0; i < REP_FIELDS.length; i++) {
+    const field = REP_FIELDS[i];
+    const re = new RegExp(`^\\s*${field.label}\\s*:\\s*(.*)$`, "i");
+    const lineIdx = lines.findIndex(l => re.test(l));
+    if (lineIdx === -1) continue;
+    let value = lines[lineIdx].match(re)[1].trim();
+    if (field.multiline) {
+      const rest = [];
+      for (let j = lineIdx + 1; j < lines.length; j++) {
+        const isNextLabel = REP_FIELDS.some(f => new RegExp(`^\\s*${f.label}\\s*:`, "i").test(lines[j]));
+        if (isNextLabel) break;
+        rest.push(lines[j]);
+      }
+      value = [value, ...rest].join("\n").trim();
+    }
+    if (value) result[field.key] = field.numeric ? (parseFloat(value.replace(/[^0-9.]/g, "")) || 0) : value;
+  }
+  return result;
+}
+
 const JOB_TYPES = [
   "Roof", "Siding", "Windows", "Doors", "Gutters", "Fascia", "Soffit",
   "Roof + Siding", "Roof + Gutters", "Siding + Windows", "Siding + Gutters",
@@ -378,6 +438,9 @@ export default function Pipeline({ session }) {
   const [gbbOpen, setGbbOpen] = useState(false);
   const [pricingSettingsOpen, setPricingSettingsOpen] = useState(false);
   const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState(null);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [abcFilter, setAbcFilter] = useState("All");
 
@@ -867,6 +930,16 @@ export default function Pipeline({ session }) {
 
               {jobTab==="details" && (
                 <div>
+                  <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                    <a href={(() => { const e = buildRepEmail(selected); return `mailto:${e.to}?subject=${encodeURIComponent(e.subject)}&body=${encodeURIComponent(e.body)}`; })()}
+                      style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:7, padding:"7px 12px", fontWeight:700, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}>
+                      📧 Email to Rep{selected.assigned && selected.assigned!=="Nick" ? ` (${selected.assigned})` : ""}
+                    </a>
+                    <button onClick={() => { setImportText(""); setImportPreview(null); setImportModalOpen(true); }}
+                      style={{ background:"none", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 12px", fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                      📥 Import from Email
+                    </button>
+                  </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
                     {[["Job Type",selected.type],["Assigned",selected.assigned],["Insurance",selected.insurer],["Claim #",selected.claimNum||"Not filed"],["Adjuster",selected.adjuster||"—"],["Adj. Phone",selected.adjPhone||"—"],["Date Added",selected.added]].map(([l,v]) => (
                       <div key={l} style={{ background:PANEL2, borderRadius:7, padding:"8px 10px" }}>
@@ -1266,6 +1339,64 @@ export default function Pipeline({ session }) {
           onSave={(p) => { savePricing(p); }}
           onClose={() => setPricingSettingsOpen(false)}
         />
+      )}
+
+      {/* IMPORT FROM EMAIL (rep reply paste-in) */}
+      {importModalOpen && selected && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:PANEL, border:`1px solid ${BORDER}`, borderRadius:12, maxWidth:560, width:"100%", maxHeight:"85vh", overflowY:"auto", padding:20 }}>
+            <div style={{ fontWeight:800, fontSize:16, marginBottom:4 }}>📥 Import from Email</div>
+            <div style={{ color:MUTED, fontSize:12, marginBottom:14 }}>Paste the rep's reply below, then review before it's saved to the job.</div>
+
+            {!importPreview ? (
+              <>
+                <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Paste the full reply email here…"
+                  style={{ width:"100%", minHeight:220, background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:8, color:TEXT, padding:12, fontSize:13, fontFamily:"monospace", boxSizing:"border-box", resize:"vertical" }}/>
+                <div style={{ display:"flex", gap:8, marginTop:14, justifyContent:"flex-end" }}>
+                  <button onClick={() => setImportModalOpen(false)} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:7, padding:"9px 16px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+                  <button onClick={() => { const parsed = parseRepEmail(importText); if (Object.keys(parsed).length===0) { alert("No recognized fields found. Make sure the labels weren't removed or renamed."); return; } setImportPreview(parsed); }}
+                    disabled={!importText.trim()}
+                    style={{ background:GOLD, color:"#000", border:"none", borderRadius:7, padding:"9px 16px", fontWeight:800, fontSize:12, cursor:importText.trim()?"pointer":"default", fontFamily:"inherit", opacity:importText.trim()?1:0.5 }}>
+                    Parse →
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize:11, color:MUTED, marginBottom:10 }}>Found {Object.keys(importPreview).length} field{Object.keys(importPreview).length===1?"":"s"}. Edit anything below before saving — nothing is written to the job yet.</div>
+                {REP_FIELDS.filter(f => importPreview[f.key] !== undefined).map(f => (
+                  <div key={f.key} style={{ marginBottom:10 }}>
+                    <label style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:4 }}>{f.label}</label>
+                    {f.multiline ? (
+                      <textarea value={importPreview[f.key]} onChange={e => setImportPreview(p => ({ ...p, [f.key]: e.target.value }))}
+                        style={{ width:"100%", minHeight:70, background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:10, fontSize:13, fontFamily:"inherit", boxSizing:"border-box", resize:"vertical" }}/>
+                    ) : (
+                      <input type={f.numeric ? "number" : "text"} value={importPreview[f.key]} onChange={e => setImportPreview(p => ({ ...p, [f.key]: f.numeric ? (parseFloat(e.target.value)||0) : e.target.value }))}
+                        style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:10, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                    )}
+                  </div>
+                ))}
+                <div style={{ display:"flex", gap:8, marginTop:14, justifyContent:"flex-end" }}>
+                  <button onClick={() => setImportPreview(null)} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:7, padding:"9px 16px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>← Back</button>
+                  <button onClick={() => {
+                      const updates = {};
+                      const estUpdates = {};
+                      Object.entries(importPreview).forEach(([key, val]) => {
+                        if (key.startsWith("estimate.")) estUpdates[key.split(".")[1]] = val;
+                        else updates[key] = val;
+                      });
+                      if (Object.keys(estUpdates).length) updates.estimate = { ...(selected.estimate||{}), ...estUpdates };
+                      updateJob(selected.id, updates);
+                      setImportModalOpen(false);
+                    }}
+                    style={{ background:"#10b981", color:"#000", border:"none", borderRadius:7, padding:"9px 16px", fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+                    ✓ Save to Job
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* QUICK QUOTE (admin, no job required) */}
