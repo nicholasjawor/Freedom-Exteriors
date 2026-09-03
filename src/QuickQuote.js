@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { calcGoodBetterBest } from "./GoodBetterBest";
 
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
@@ -27,6 +27,12 @@ function fmt(n) {
 
 // ─── Quick Quote — no job attached, just an address in / pricing out ────────
 export default function QuickQuote({ pricing, onClose }) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("MN");
@@ -85,7 +91,7 @@ export default function QuickQuote({ pricing, onClose }) {
 
         <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: GOLD, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Address</div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 0.6fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 0.6fr", gap: 12 }}>
             <Field label="Street Address" value={address} onChange={setAddress} type="text" />
             <Field label="City" value={city} onChange={setCity} type="text" />
             <Field label="State" value={state} onChange={setState} type="text" />
@@ -112,7 +118,7 @@ export default function QuickQuote({ pricing, onClose }) {
               🛰️ {fetchInfo}
             </div>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12 }}>
             <Field label="Roof Area" value={sqFt} onChange={setSqFt} suffix="sq ft" />
             <Field label="Pitch (rise/12)" value={pitch} onChange={setPitch} suffix="/12" />
             <div>
@@ -135,7 +141,7 @@ export default function QuickQuote({ pricing, onClose }) {
               <span>Story surcharge: <strong style={{ color: result.storyPct > 0 ? GOLD : TEXT }}>+{result.storyPct}%</strong></span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {[
                 { key: "good", label: "GOOD", color: "#38bdf8", data: result.good },
                 { key: "better", label: "BETTER", color: GOLD, data: result.better },
