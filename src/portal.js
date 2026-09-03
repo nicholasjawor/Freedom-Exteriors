@@ -10,9 +10,10 @@ const STAGES = [
   { id: "inspection", label: "Inspection",  icon: "🔍" },
   { id: "claim",      label: "Claim Filed", icon: "📋" },
   { id: "approved",   label: "Approved",    icon: "✅" },
+  { id: "deposit",    label: "Initial Deposit Received", icon: "💵" },
   { id: "scheduled",  label: "Scheduled",   icon: "📅" },
   { id: "installed",  label: "Installed",   icon: "🔨" },
-  { id: "collected",  label: "Collected",   icon: "💰" },
+  { id: "collected",  label: "Paid in Full",   icon: "💰" },
 ];
 
 export default function Portal({ token }) {

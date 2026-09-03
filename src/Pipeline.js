@@ -21,9 +21,10 @@ const STAGES = [
   { id: "inspection", label: "Inspection",  color: "#0ea5e9", icon: "🔍" },
   { id: "claim",      label: "Claim Filed", color: "#8b5cf6", icon: "📋" },
   { id: "approved",   label: "Approved",    color: GOLD,      icon: "✅" },
+  { id: "deposit",    label: "Initial Deposit Received", color: "#22c55e", icon: "💵" },
   { id: "scheduled",  label: "Scheduled",   color: "#f97316", icon: "📅" },
   { id: "installed",  label: "Installed",   color: TEAL,      icon: "🔨" },
-  { id: "collected",  label: "Collected",   color: "#10b981", icon: "💰" },
+  { id: "collected",  label: "Paid in Full",   color: "#10b981", icon: "💰" },
 ];
 const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
 const USERS = ["Nick", "Victor", "Brett"];
