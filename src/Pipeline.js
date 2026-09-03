@@ -27,7 +27,6 @@ const STAGES = [
   { id: "collected",  label: "Paid in Full",   color: "#10b981", icon: "💰" },
 ];
 const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
-const USERS = ["Nick", "Victor", "Brett"];
 const JOB_TYPES = [
   "Roof", "Siding", "Windows", "Doors", "Gutters", "Fascia", "Soffit",
   "Roof + Siding", "Roof + Gutters", "Siding + Windows", "Siding + Gutters",
@@ -1147,7 +1146,7 @@ export default function Pipeline({ session }) {
             <Sec title="Hover & Assignment">
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:10 }}>
                 <F label="Hover Job ID" value={form.hoverId} onChange={v => setForm(p=>({...p,hoverId:v}))} placeholder="e.g. 1234567"/>
-                <Sel label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))} options={USERS}/>
+                <F label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))} placeholder="e.g. Victor"/>
               </div>
               {form.hoverId && <a href={`https://hover.to/jobs/${form.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontSize:12, fontWeight:700, textDecoration:"none" }}>Open in Hover ↗</a>}
             </Sec>
