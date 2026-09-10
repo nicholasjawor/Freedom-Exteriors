@@ -109,7 +109,7 @@ function iowaMNLRStatus(workStartDate) {
   const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
   return { deadline, daysLeft, overdue: daysLeft < 0 };
 }
-const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Misc"];
+const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Receipt","Deposit Check","Misc"];
 
 const CHECKLIST_ITEMS = [
   { id:"c1",  label:"Schedule Product Meeting — review trades, selections, ACV/RCV basics" },
@@ -441,6 +441,7 @@ export default function Pipeline({ session }) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importPreview, setImportPreview] = useState(null);
+  const [photoUploadCat, setPhotoUploadCat] = useState("Damage");
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [abcFilter, setAbcFilter] = useState("All");
 
@@ -570,11 +571,11 @@ export default function Pipeline({ session }) {
     updateJob(jobId, { checklist: { ...current, [checkId]: !current[checkId] } });
   };
 
-  const addPhotos = (jobId, files) => {
+  const addPhotos = (jobId, files, cat) => {
     const job = jobs.find(j => j.id === jobId);
     const readers = Array.from(files).map(file => new Promise(res => {
       const r = new FileReader();
-      r.onload = e => res({ id: Date.now() + Math.random(), url: e.target.result, name: file.name, cat: "Damage", added: new Date().toLocaleDateString() });
+      r.onload = e => res({ id: Date.now() + Math.random(), url: e.target.result, name: file.name, cat: cat || "Damage", added: new Date().toLocaleDateString() });
       r.readAsDataURL(file);
     }));
     Promise.all(readers).then(newPhotos => { updateJob(jobId, { photos: [...(job?.photos || []), ...newPhotos] }); });
@@ -1166,10 +1167,17 @@ export default function Pipeline({ session }) {
 
               {jobTab==="photos" && (
                 <div>
+                  <div style={{ marginBottom:10 }}>
+                    <label style={{ display:"block", fontSize:10, fontWeight:700, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Uploading as</label>
+                    <select value={photoUploadCat} onChange={e => setPhotoUploadCat(e.target.value)}
+                      style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"9px 10px", fontSize:13, fontFamily:"inherit" }}>
+                      {PHOTO_CATS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
                   <label style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:"pointer", background:PANEL2, border:`2px dashed ${BORDER}`, borderRadius:9, padding:"20px", marginBottom:12 }}>
-                    <input type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e => addPhotos(selected.id, e.target.files)}/>
+                    <input type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e => addPhotos(selected.id, e.target.files, photoUploadCat)}/>
                     <span style={{ fontSize:28 }}>📷</span>
-                    <div><div style={{ fontWeight:700, fontSize:14 }}>Upload Photos</div><div style={{ color:MUTED, fontSize:11 }}>Damage · Before · After · Adjuster Visit</div></div>
+                    <div><div style={{ fontWeight:700, fontSize:14 }}>Upload {photoUploadCat}</div><div style={{ color:MUTED, fontSize:11 }}>Photos are tagged as "{photoUploadCat}" above</div></div>
                   </label>
                   {(selected.photos||[]).length === 0 && <div style={{ textAlign:"center", color:MUTED, padding:"20px 0" }}>No photos yet.</div>}
                   {PHOTO_CATS.filter(cat => (selected.photos||[]).some(p => p.cat===cat)).map(cat => (
