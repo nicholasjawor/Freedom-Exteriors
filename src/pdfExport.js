@@ -356,7 +356,7 @@ export function exportDocsAcknowledgement(data, job) {
   openPrint("Contractor Documents Acknowledgement", html);
 }
 
-export function exportCommissionWorkbook(data, job) {
+export function exportCommissionWorkbook(data, job, isParLead) {
   const fmt = n => isNaN(n)||n===0 ? "$0.00" : (n<0?"-$":"$")+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   const gross = parseFloat(data.grossRevenue)||0;
   const opAlloc = gross*0.15;
@@ -367,6 +367,9 @@ export function exportCommissionWorkbook(data, job) {
   const commNet = netRev-costs;
   const tier = parseFloat(data.tier)||30;
   const commission = commNet*(tier/100);
+  const parFee = isParLead ? commNet * 0.105 : 0;
+  const repNet = commission - parFee;
+  const finalCommission = isParLead ? repNet : commission;
 
   const costRows = costKeys.map((k,i) => {
     const v = parseFloat(data[k])||0;
@@ -374,9 +377,11 @@ export function exportCommissionWorkbook(data, job) {
     return `<tr><td style="padding:4px 8px;font-size:9.5pt;color:#555">${costLabels[i]}</td><td style="padding:4px 8px;font-size:9.5pt;text-align:right;font-family:monospace">${k==="materialReturn"?"−":""} ${fmt(v)}</td></tr>`;
   }).join("");
 
-  const isCallCompany = tier === 35;
-  const callCompanyFee = isCallCompany ? commNet * 0.35 : 0;
-  const repCommission = isCallCompany ? commission - callCompanyFee : commission;
+  const repSplitRows = (data.repSplitActive ? (data.repSplits || []) : []).filter(r => r.name || parseFloat(r.pct)).map(r => {
+    const pct = parseFloat(r.pct) || 0;
+    const amount = finalCommission * (pct / 100);
+    return `<tr><td style="padding:4px 8px;font-size:9.5pt;color:#555">${r.name || "(unnamed)"} (${pct}%)</td><td style="padding:4px 8px;font-size:9.5pt;text-align:right;font-family:monospace">${fmt(amount)}</td></tr>`;
+  }).join("");
 
   const html = `
     <div class="doc-title"><h1>Commission Workbook</h1><h2>${job?.name || ""} · ${job?.address || ""}</h2></div>
@@ -396,15 +401,20 @@ export function exportCommissionWorkbook(data, job) {
     <div class="section"><div class="section-title">Step 3 — Commission Calculation</div><div class="section-body">
       <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
         <tr style="font-weight:700"><td style="padding:6px 8px;font-size:10pt">U. Commissionable Net (C − T)</td><td style="padding:6px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commNet)}</td></tr>
-        <tr><td style="padding:4px 8px;font-size:10pt">V. Commission Tier ${isCallCompany ? "(Call Company Lead)" : ""}</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-weight:700">${tier}%</td></tr>
-        <tr style="border-top:1px solid #eee"><td style="padding:4px 8px;font-size:10pt">Gross Commission (S × T)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commission)}</td></tr>
-        ${isCallCompany ? `<tr style="color:#c00"><td style="padding:4px 8px;font-size:10pt">− Call Company Fee (35% of net)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">− ${fmt(callCompanyFee)}</td></tr>` : ""}
+        <tr><td style="padding:4px 8px;font-size:10pt">V. Commission Tier</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-weight:700">${tier}%</td></tr>
+        <tr style="border-top:1px solid #eee"><td style="padding:4px 8px;font-size:10pt">W. Gross Commission (U × V)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commission)}</td></tr>
+        ${isParLead ? `<tr style="color:#c00"><td style="padding:4px 8px;font-size:10pt">− PAR Fee (10.5% of net)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">− ${fmt(parFee)}</td></tr>` : ""}
       </table>
       <div style="background:#fffbea;border:2px solid #e8a820;border-radius:4px;padding:14px;text-align:center">
-        <div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px">W. ${isCallCompany ? "Rep Net Commission" : "Total Net Commission (U × V)"}</div>
-        <div style="font-size:26pt;font-weight:900;font-family:monospace;color:${repCommission>=0?"#e8a820":"#e55"}">${fmt(repCommission)}</div>
-        <div style="font-size:8.5pt;color:#666;margin-top:4px">${isCallCompany ? `${tier}% gross less 35% call company fee` : `${tier}% of ${fmt(commNet)} commissionable net`}</div>
+        <div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px">${isParLead ? "Rep Net Commission (after PAR fee)" : "Total Net Commission (U × V)"}</div>
+        <div style="font-size:26pt;font-weight:900;font-family:monospace;color:${finalCommission>=0?"#e8a820":"#e55"}">${fmt(finalCommission)}</div>
+        <div style="font-size:8.5pt;color:#666;margin-top:4px">${tier}% of ${fmt(commNet)} commissionable net${isParLead ? " less PAR fee" : ""}</div>
       </div>
-    </div></div>`;
+    </div></div>
+    ${repSplitRows ? `<div class="section"><div class="section-title">Step 4 — Sales Rep Split</div><div class="section-body">
+      <table style="width:100%;border-collapse:collapse">
+        ${repSplitRows}
+      </table>
+    </div></div>` : ""}`;
   openPrint("Commission Workbook", html);
 }

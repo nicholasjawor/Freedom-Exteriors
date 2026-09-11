@@ -88,16 +88,24 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
   const [local, setLocal] = useState({ ...c, tier: c.tier || 30 });
   const [savedFlash, setSavedFlash] = useState(false);
   const [parActive, setParActive] = useState(!!job.parLead);
+  const [repSplitActive, setRepSplitActive] = useState(!!c.repSplitActive);
+  const [repSplits, setRepSplits] = useState(c.repSplits && c.repSplits.length ? c.repSplits : [{ id: Date.now(), name: "", pct: "" }]);
 
   const set = (key) => (val) => setLocal(prev => ({ ...prev, [key]: val }));
 
+  const addRepRow = () => setRepSplits(rows => [...rows, { id: Date.now() + Math.random(), name: "", pct: "" }]);
+  const removeRepRow = (id) => setRepSplits(rows => rows.filter(r => r.id !== id));
+  const updateRepRow = (id, key, val) => setRepSplits(rows => rows.map(r => r.id === id ? { ...r, [key]: val } : r));
+
   const save = () => {
-    onSave({ commission: local });
+    onSave({ commission: { ...local, repSplitActive, repSplits } });
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1800);
   };
 
   const r = calc(local, parActive);
+  const finalCommission = r.isParLead ? r.repNet : r.commission;
+  const repSplitPctTotal = repSplits.reduce((sum, row) => sum + (parseFloat(row.pct) || 0), 0);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -111,7 +119,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {savedFlash && <span style={{ color: TEAL, fontSize: 12, fontWeight: 700 }}>✓ Saved</span>}
-          <button onClick={() => exportCommissionWorkbook(local, job)} style={{ background:"#fff2", border:"1px solid #fff4", color:TEXT, borderRadius:7, padding:"9px 14px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>📥 PDF</button>
+          <button onClick={() => exportCommissionWorkbook({ ...local, repSplitActive, repSplits }, job, parActive)} style={{ background:"#fff2", border:"1px solid #fff4", color:TEXT, borderRadius:7, padding:"9px 14px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>📥 PDF</button>
           <button onClick={save} style={{ background: `${TEAL}22`, border: `1px solid ${TEAL}`, color: TEAL, borderRadius: 7, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>💾 Save</button>
           <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 7, padding: "9px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>✕ Close</button>
         </div>
@@ -244,7 +252,71 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
               <div>− PAR Fee (10.5% of net): <span style={{ color: "#f87171", fontFamily: "monospace" }}>− {fmt(r.parFee)}</span></div>
               <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 4 }}>= Rep Net: <span style={{ color: TEAL, fontFamily: "monospace", fontWeight: 700 }}>{fmt(r.repNet)}</span></div>
             </>}
+            {repSplitActive && repSplits.some(row => row.name || row.pct) && (
+              <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 8, paddingTop: 8 }}>
+                <div style={{ fontWeight: 700, color: TEXT, marginBottom: 4 }}>Sales Rep Split ({fmt(finalCommission)})</div>
+                {repSplits.filter(row => row.name || row.pct).map(row => (
+                  <div key={row.id}>{row.name || "(unnamed)"} ({parseFloat(row.pct) || 0}%): <span style={{ color: GOLD, fontFamily: "monospace", fontWeight: 700 }}>{fmt(finalCommission * ((parseFloat(row.pct) || 0) / 100))}</span></div>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Step 4: Sales Rep Split */}
+        <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: repSplitActive ? 14 : 0 }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: GOLD, textTransform: "uppercase", letterSpacing: 1 }}>Step 4 — Sales Rep Split</div>
+            <button
+              onClick={() => setRepSplitActive(a => !a)}
+              style={{
+                width: 42, height: 24, borderRadius: 12, padding: "2px", display: "flex", alignItems: "center", border: "none", cursor: "pointer",
+                background: repSplitActive ? "#22d3ee" : BORDER, justifyContent: repSplitActive ? "flex-end" : "flex-start", transition: "all 0.2s"
+              }}>
+              <div style={{ width: 20, height: 20, borderRadius: 10, background: "#fff" }} />
+            </button>
+          </div>
+
+          {repSplitActive && (
+            <>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 12 }}>
+                Splits <strong style={{ color: TEXT }}>{fmt(finalCommission)}</strong> — the {r.isParLead ? "Rep Net Commission (after PAR fee)" : "Gross Commission"} — between whoever agreed to split this deal.
+              </div>
+
+              {repSplits.map((row, i) => {
+                const pct = parseFloat(row.pct) || 0;
+                const amount = finalCommission * (pct / 100);
+                return (
+                  <div key={row.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                    <input
+                      type="text" placeholder={`Rep ${i + 1} name`} value={row.name}
+                      onChange={e => updateRepRow(row.id, "name", e.target.value)}
+                      style={{ flex: 2, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                    <div style={{ position: "relative", flex: 1 }}>
+                      <input
+                        type="number" min="0" max="100" step="0.1" placeholder="0"
+                        value={row.pct}
+                        onChange={e => updateRepRow(row.id, "pct", e.target.value)}
+                        style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 20px 9px 10px", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }}
+                      />
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: MUTED, fontSize: 12 }}>%</span>
+                    </div>
+                    <div style={{ flex: 1, textAlign: "right", fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: GOLD }}>{fmt(amount)}</div>
+                    <button onClick={() => removeRepRow(row.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>✕</button>
+                  </div>
+                );
+              })}
+
+              <button onClick={addRepRow} style={{ background: "none", border: `1px dashed ${BORDER}`, color: MUTED, borderRadius: 7, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 4 }}>+ Add Rep</button>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, paddingTop: 12, borderTop: `1px solid ${BORDER}` }}>
+                <span style={{ fontSize: 12, color: repSplitPctTotal === 100 ? MUTED : "#f87171", fontWeight: 700 }}>
+                  Total: {repSplitPctTotal.toFixed(1)}% {repSplitPctTotal !== 100 && "⚠️ doesn't add up to 100%"}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         <button onClick={save} style={{ background: `${TEAL}22`, border: `1px solid ${TEAL}`, color: TEAL, borderRadius: 8, padding: "14px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 20 }}>💾 Save Workbook</button>
