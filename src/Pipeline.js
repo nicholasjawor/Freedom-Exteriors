@@ -109,7 +109,7 @@ function iowaMNLRStatus(workStartDate) {
   const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
   return { deadline, daysLeft, overdue: daysLeft < 0 };
 }
-const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Receipt","Deposit Check","Misc"];
+const PHOTO_CATS = ["Damage","Before","After","Adjuster Visit","Supplement","Deposit Check","Misc"];
 
 const CHECKLIST_ITEMS = [
   { id:"c1",  label:"Schedule Product Meeting — review trades, selections, ACV/RCV basics" },
@@ -442,6 +442,8 @@ export default function Pipeline({ session }) {
   const [importText, setImportText] = useState("");
   const [importPreview, setImportPreview] = useState(null);
   const [photoUploadCat, setPhotoUploadCat] = useState("Damage");
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+  useEffect(() => { setPendingPhotos([]); }, [selected?.id]);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [abcFilter, setAbcFilter] = useState("All");
 
@@ -571,14 +573,20 @@ export default function Pipeline({ session }) {
     updateJob(jobId, { checklist: { ...current, [checkId]: !current[checkId] } });
   };
 
-  const addPhotos = (jobId, files, cat) => {
-    const job = jobs.find(j => j.id === jobId);
+  const stagePhotos = (files, cat) => {
     const readers = Array.from(files).map(file => new Promise(res => {
       const r = new FileReader();
-      r.onload = e => res({ id: Date.now() + Math.random(), url: e.target.result, name: file.name, cat: cat || "Damage", added: new Date().toLocaleDateString() });
+      r.onload = e => res({ id: Date.now() + Math.random(), url: e.target.result, name: file.name, cat: cat || "Damage" });
       r.readAsDataURL(file);
     }));
-    Promise.all(readers).then(newPhotos => { updateJob(jobId, { photos: [...(job?.photos || []), ...newPhotos] }); });
+    Promise.all(readers).then(staged => setPendingPhotos(p => [...p, ...staged]));
+  };
+
+  const savePendingPhotos = (jobId) => {
+    const job = jobs.find(j => j.id === jobId);
+    const toSave = pendingPhotos.map(p => ({ ...p, added: new Date().toLocaleDateString() }));
+    updateJob(jobId, { photos: [...(job?.photos || []), ...toSave] });
+    setPendingPhotos([]);
   };
 
   const addMaterial = (jobId, item) => {
@@ -1175,11 +1183,33 @@ export default function Pipeline({ session }) {
                     </select>
                   </div>
                   <label style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:"pointer", background:PANEL2, border:`2px dashed ${BORDER}`, borderRadius:9, padding:"20px", marginBottom:12 }}>
-                    <input type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e => addPhotos(selected.id, e.target.files, photoUploadCat)}/>
+                    <input type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e => { stagePhotos(e.target.files, photoUploadCat); e.target.value = ""; }}/>
                     <span style={{ fontSize:28 }}>📷</span>
                     <div><div style={{ fontWeight:700, fontSize:14 }}>Upload {photoUploadCat}</div><div style={{ color:MUTED, fontSize:11 }}>Photos are tagged as "{photoUploadCat}" above</div></div>
                   </label>
-                  {(selected.photos||[]).length === 0 && <div style={{ textAlign:"center", color:MUTED, padding:"20px 0" }}>No photos yet.</div>}
+
+                  {pendingPhotos.length > 0 && (
+                    <div style={{ background:`${GOLD}11`, border:`1px solid ${GOLD}44`, borderRadius:9, padding:12, marginBottom:14 }}>
+                      <div style={{ fontSize:11, color:GOLD, fontWeight:700, marginBottom:8 }}>
+                        {pendingPhotos.length} photo{pendingPhotos.length===1?"":"s"} ready — not saved yet
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(4,1fr)", gap:6, marginBottom:10 }}>
+                        {pendingPhotos.map(ph => (
+                          <div key={ph.id} style={{ position:"relative", borderRadius:6, overflow:"hidden", border:`1px solid ${GOLD}66` }}>
+                            <img src={ph.url} alt={ph.name} style={{ width:"100%", height:80, objectFit:"cover", display:"block" }}/>
+                            <button onClick={() => setPendingPhotos(p => p.filter(x => x.id !== ph.id))}
+                              style={{ position:"absolute", top:3, right:3, background:"rgba(0,0,0,0.7)", border:"none", color:"#f87171", borderRadius:5, width:20, height:20, fontSize:12, cursor:"pointer", lineHeight:1 }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={() => setPendingPhotos([])} style={{ flex:1, background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:7, padding:"10px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Discard</button>
+                        <button onClick={() => savePendingPhotos(selected.id)} style={{ flex:2, background:"#10b981", color:"#000", border:"none", borderRadius:7, padding:"10px", fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>💾 Save {pendingPhotos.length} Photo{pendingPhotos.length===1?"":"s"}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(selected.photos||[]).length === 0 && pendingPhotos.length === 0 && <div style={{ textAlign:"center", color:MUTED, padding:"20px 0" }}>No photos yet.</div>}
                   {PHOTO_CATS.filter(cat => (selected.photos||[]).some(p => p.cat===cat)).map(cat => (
                     <div key={cat} style={{ marginBottom:14 }}>
                       <div style={{ fontSize:11, color:GOLD, fontWeight:700, marginBottom:6 }}>{cat}</div>
