@@ -361,8 +361,8 @@ export function exportCommissionWorkbook(data, job) {
   const gross = parseFloat(data.grossRevenue)||0;
   const opAlloc = gross*0.15;
   const netRev = gross-opAlloc;
-  const costKeys = ["xactimate","permits","roofMaterials","roofLabor","sidingMaterials","sidingLabor","gutterMat","gutterLabor","windows","electrical","dumpster","hoverCost","chargeback","insNegFee","supplementFee","materialReturn","other"];
-  const costLabels = ["Xactimate","Permits","Roofing Materials","Roofing Labor","Siding / Wrap Materials","Siding / Wrap Labor","Gutter Materials","Gutter Labor","Windows","Electrical","Dumpster Fees","Hover Cost","Chargeback","Insurance Negotiation Fee","Supplement Negotiation Fee","Material Return Credit (−)","Other"];
+  const costKeys = ["xactimate","permits","roofMaterials","roofLabor","sidingMaterials","sidingLabor","gutterMat","gutterLabor","windows","electrical","dumpster","hoverCost","chargeback","insNegFee","supplementFee","materialReturn","supplyRun","cleanUp","other"];
+  const costLabels = ["Xactimate","Permits","Roofing Materials","Roofing Labor","Siding / Wrap Materials","Siding / Wrap Labor","Gutter Materials","Gutter Labor","Windows","Electrical","Dumpster Fees","Hover Cost","Chargeback","Insurance Negotiation Fee","Supplement Negotiation Fee","Material Return Credit (−)","Supply Run (Menards/Home Depot/etc.)","Clean Up","Other"];
   const costs = costKeys.reduce((sum,k,i) => { const v=parseFloat(data[k])||0; return k==="materialReturn"?sum-v:sum+v; },0);
   const commNet = netRev-costs;
   const tier = parseFloat(data.tier)||30;
@@ -390,18 +390,18 @@ export function exportCommissionWorkbook(data, job) {
     <div class="section"><div class="section-title">Step 2 — Cost of Revenue</div><div class="section-body">
       <table style="width:100%;border-collapse:collapse">
         ${costRows || "<tr><td colspan='2' style='padding:6px 8px;font-size:9.5pt;color:#999'>No costs entered</td></tr>"}
-        <tr style="border-top:2px solid #ddd;font-weight:700"><td style="padding:6px 8px;font-size:10pt">R. Total Cost of Revenue</td><td style="padding:6px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(costs)}</td></tr>
+        <tr style="border-top:2px solid #ddd;font-weight:700"><td style="padding:6px 8px;font-size:10pt">T. Total Cost of Revenue</td><td style="padding:6px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(costs)}</td></tr>
       </table>
     </div></div>
     <div class="section"><div class="section-title">Step 3 — Commission Calculation</div><div class="section-body">
       <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
-        <tr style="font-weight:700"><td style="padding:6px 8px;font-size:10pt">S. Commissionable Net (C − R)</td><td style="padding:6px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commNet)}</td></tr>
-        <tr><td style="padding:4px 8px;font-size:10pt">T. Commission Tier ${isCallCompany ? "(Call Company Lead)" : ""}</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-weight:700">${tier}%</td></tr>
+        <tr style="font-weight:700"><td style="padding:6px 8px;font-size:10pt">U. Commissionable Net (C − T)</td><td style="padding:6px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commNet)}</td></tr>
+        <tr><td style="padding:4px 8px;font-size:10pt">V. Commission Tier ${isCallCompany ? "(Call Company Lead)" : ""}</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-weight:700">${tier}%</td></tr>
         <tr style="border-top:1px solid #eee"><td style="padding:4px 8px;font-size:10pt">Gross Commission (S × T)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">${fmt(commission)}</td></tr>
         ${isCallCompany ? `<tr style="color:#c00"><td style="padding:4px 8px;font-size:10pt">− Call Company Fee (35% of net)</td><td style="padding:4px 8px;font-size:10pt;text-align:right;font-family:monospace">− ${fmt(callCompanyFee)}</td></tr>` : ""}
       </table>
       <div style="background:#fffbea;border:2px solid #e8a820;border-radius:4px;padding:14px;text-align:center">
-        <div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px">U. ${isCallCompany ? "Rep Net Commission" : "Total Net Commission (S × T)"}</div>
+        <div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px">W. ${isCallCompany ? "Rep Net Commission" : "Total Net Commission (U × V)"}</div>
         <div style="font-size:26pt;font-weight:900;font-family:monospace;color:${repCommission>=0?"#e8a820":"#e55"}">${fmt(repCommission)}</div>
         <div style="font-size:8.5pt;color:#666;margin-top:4px">${isCallCompany ? `${tier}% gross less 35% call company fee` : `${tier}% of ${fmt(commNet)} commissionable net`}</div>
       </div>

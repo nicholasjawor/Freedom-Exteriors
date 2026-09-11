@@ -30,7 +30,9 @@ const COST_LINES = [
   { key: "insNegFee",      label: "N. Insurance Negotiation Fee" },
   { key: "supplementFee",  label: "O. Supplement Negotiation Fee" },
   { key: "materialReturn", label: "P. Material Return Credit (−)" },
-  { key: "other",          label: "Q. Other" },
+  { key: "supplyRun",      label: "Q. Supply Run (Menards/Home Depot/etc.)" },
+  { key: "cleanUp",        label: "R. Clean Up" },
+  { key: "other",          label: "S. Other" },
 ];
 
 function calc(c, isParLead) {
@@ -144,19 +146,19 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
             <CostInput key={key} label={label} value={local[key]} onChange={set(key)} />
           ))}
           <div style={{ marginTop: 12 }}>
-            <Row label="R. Total Cost of Revenue" value={fmt(r.costs)} bold />
+            <Row label="T. Total Cost of Revenue" value={fmt(r.costs)} bold />
           </div>
         </div>
 
         {/* Step 3: Commission */}
         <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18 }}>
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: GOLD, marginBottom: 14, textTransform: "uppercase", letterSpacing: 1 }}>Step 3 — Commission Calculation</div>
-          <Row label="S. Commissionable Net (C − R)" value={fmt(r.commNet)} bold />
+          <Row label="U. Commissionable Net (C − T)" value={fmt(r.commNet)} bold />
 
           {/* Tier selector — admin only */}
           <div style={{ marginTop: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              T. Commission Tier {!isAdmin && <span style={{ color: "#f87171", marginLeft: 6 }}>🔒 Set by admin</span>}
+              V. Commission Tier {!isAdmin && <span style={{ color: "#f87171", marginLeft: 6 }}>🔒 Set by admin</span>}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {TIERS.map(({ value, label, desc }) => {
@@ -208,7 +210,7 @@ export default function CommissionWorkbook({ job, isAdmin, onSave, onClose }) {
 
           {/* Final commission */}
           <div style={{ background: `${GOLD}11`, border: `1px solid ${GOLD}44`, borderRadius: 10, padding: 18, textAlign: "center", marginTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>U. Rep Gross Commission (S × T)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>W. Rep Gross Commission (U × V)</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: r.commission >= 0 ? GOLD : "#f87171", fontFamily: "monospace" }}>{fmt(r.commission)}</div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{r.tier}% of {fmt(r.commNet)} commissionable net</div>
             {r.isParLead && (
