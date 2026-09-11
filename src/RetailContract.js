@@ -170,7 +170,7 @@ export default function RetailContract({ job, onSave, onClose }) {
         {/* Title */}
         <div style={{ textAlign:"center", marginBottom:18 }}>
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:22, letterSpacing:1, color:TEXT }}>RESIDENTIAL ROOFING CONTRACT</div>
-          <div style={{ color:MUTED, fontSize:13, marginTop:4 }}>No. {data.contractNo} · Freedom Exteriors LLC · 1145 Summit Ave, Mahtomedi, MN 55115 · (651) 283-1689 · License #IR813877</div>
+          <div style={{ color:MUTED, fontSize:13, marginTop:4 }}>No. {data.contractNo} · Freedom Exteriors LLC · 1145 Summit Ave, Mahtomedi, MN 55115 · (651) 283-1689 · License #BC-810020</div>
         </div>
 
         {/* Owner Info */}

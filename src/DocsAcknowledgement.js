@@ -12,7 +12,7 @@ const REQUIRED_DOCS = [
   "MN Statute 326B.809 — Written Contract and Performance Guidelines",
   "MN Statute 326B.811 — Right to Cancel for Denied Claim",
   "MN Statute 327A — Warranty",
-  "General Contractor License #IR813877",
+  "General Contractor License #BC-810020",
   "General Liability and Workers Compensation Insurance",
   "Mold Notice",
   "Cancellation Form",
@@ -114,7 +114,7 @@ export default function DocsAcknowledgement({ job, onSave, onClose }) {
       <div style={{ maxWidth:720, margin:"0 auto", padding:18 }}>
         <div style={{ textAlign:"center", marginBottom:18 }}>
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:20, letterSpacing:1, color:TEXT }}>CONTRACTOR DOCUMENTS ACKNOWLEDGEMENT</div>
-          <div style={{ color:MUTED, fontSize:13, marginTop:4 }}>Freedom Exteriors LLC · 1145 Summit Ave, Mahtomedi, MN 55115 · (651) 283-1689 · License #IR813877</div>
+          <div style={{ color:MUTED, fontSize:13, marginTop:4 }}>Freedom Exteriors LLC · 1145 Summit Ave, Mahtomedi, MN 55115 · (651) 283-1689 · License #BC-810020</div>
         </div>
 
         {/* Homeowner info */}

@@ -272,7 +272,7 @@ third business day after the date of this transaction. You may also cancel withi
 NOTE: This contract may be withdrawn or renegotiated after _____ days if not
 approved and signed by BOTH parties.
 
-General Contractor License #IR813877 | Phone: (651) 283-1689`
+General Contractor License #BC-810020 | Phone: (651) 283-1689`
   },
   retail: {
     label: "Retail Contract (OOP)",
@@ -329,7 +329,7 @@ Approved (contractor): __________________________ Date: ____________
 You, the Buyer, may cancel this transaction at any time prior to midnight of the
 third business day after the date of this transaction.
 
-General Contractor License #IR813877 | Phone: (651) 283-1689`
+General Contractor License #BC-810020 | Phone: (651) 283-1689`
   },
 };
 

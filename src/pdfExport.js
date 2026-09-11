@@ -6,7 +6,7 @@ const COMPANY = {
   name: "Freedom Exteriors LLC",
   address: "1145 Summit Ave, Mahtomedi, MN 55115",
   phone: "(651) 283-1689",
-  license: "License #IR813877",
+  license: "License #BC-810020",
   tagline: "Veteran Owned & Operated",
 };
 
@@ -332,7 +332,7 @@ export function exportDocsAcknowledgement(data, job) {
     "MN Statute 326B.809 — Written Contract and Performance Guidelines",
     "MN Statute 326B.811 — Right to Cancel for Denied Claim",
     "MN Statute 327A — Warranty",
-    "General Contractor License #IR813877",
+    "General Contractor License #BC-810020",
     "General Liability and Workers Compensation Insurance",
     "Mold Notice",
     "Cancellation Form",
