@@ -26,6 +26,15 @@ const DEFAULT_PRICING = {
     { stories: 3, label: "3+ Story", pct: 25 },
   ],
   wasteFactorPct: 10, // % added to measured area for cuts/waste
+  // Live ABC Supply pricing — a cross-check against baseGood/Better/Best,
+  // never auto-applied to them: a live catalog price is quoted per ABC's
+  // own unit (roll, bundle, ...), not the $/square these tiers are priced
+  // in, and there's no safe automatic conversion between the two.
+  abcSupply: {
+    shipToAccountNumber: "",
+    referenceItems: [], // [{ label, abcSupplyItemId, unit }]
+    livePrices: {}, // { [abcSupplyItemId]: { unitPrice, unitOfMeasure, fetchedAt } }
+  },
 };
 
 function Field({ label, value, onChange, prefix, suffix }) {
@@ -50,12 +59,48 @@ function fmt(n) {
 
 // ─── Pricing Settings Screen (admin configures once) ────────────────────────
 export function PricingSettings({ pricing, onSave, onClose }) {
-  const [local, setLocal] = useState(pricing || DEFAULT_PRICING);
+  const [local, setLocal] = useState({ ...DEFAULT_PRICING, ...(pricing || {}), abcSupply: { ...DEFAULT_PRICING.abcSupply, ...(pricing?.abcSupply || {}) } });
   const [savedFlash, setSavedFlash] = useState(false);
+  const [abcRefreshing, setAbcRefreshing] = useState(false);
+  const [abcError, setAbcError] = useState(null);
 
   const save = () => { onSave(local); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800); };
   const setPitchBand = (i, key) => (v) => setLocal(d => { const bands = [...d.pitchBands]; bands[i] = { ...bands[i], [key]: v }; return { ...d, pitchBands: bands }; });
   const setStoryBand = (i, key) => (v) => setLocal(d => { const bands = [...d.storyBands]; bands[i] = { ...bands[i], [key]: v }; return { ...d, storyBands: bands }; });
+  const setAbcField = (key) => (v) => setLocal(d => ({ ...d, abcSupply: { ...d.abcSupply, [key]: v } }));
+  const setAbcItem = (i, key) => (v) => setLocal(d => {
+    const items = [...d.abcSupply.referenceItems];
+    items[i] = { ...items[i], [key]: v };
+    return { ...d, abcSupply: { ...d.abcSupply, referenceItems: items } };
+  });
+  const addAbcItem = () => setLocal(d => ({ ...d, abcSupply: { ...d.abcSupply, referenceItems: [...d.abcSupply.referenceItems, { label: "", abcSupplyItemId: "", unit: "" }] } }));
+  const removeAbcItem = (i) => setLocal(d => ({ ...d, abcSupply: { ...d.abcSupply, referenceItems: d.abcSupply.referenceItems.filter((_, idx) => idx !== i) } }));
+
+  const refreshAbcPricing = async () => {
+    const items = local.abcSupply.referenceItems.filter(it => it.abcSupplyItemId);
+    if (!items.length) { setAbcError("Add at least one item with an ABC Supply item ID first."); return; }
+    if (!local.abcSupply.shipToAccountNumber) { setAbcError("Ship-To account number is required."); return; }
+    setAbcRefreshing(true);
+    setAbcError(null);
+    try {
+      const res = await fetch("/api/abc-supply-pricing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: items.map(it => it.abcSupplyItemId), shipToAccountNumber: local.abcSupply.shipToAccountNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Refresh failed");
+      const livePrices = { ...local.abcSupply.livePrices };
+      data.prices.forEach(p => {
+        if (p.unitPrice != null) livePrices[p.itemId] = { unitPrice: p.unitPrice, unitOfMeasure: p.unitOfMeasure, fetchedAt: data.fetchedAt };
+      });
+      setLocal(d => ({ ...d, abcSupply: { ...d.abcSupply, livePrices } }));
+    } catch (e) {
+      setAbcError(e.message);
+    } finally {
+      setAbcRefreshing(false);
+    }
+  };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -113,6 +158,55 @@ export function PricingSettings({ pricing, onSave, onClose }) {
           <div style={{ fontSize: 11, color: MUTED, marginBottom: 14 }}>Extra material added on top of measured roof area to cover cuts, hips, valleys, and overlap.</div>
           <div style={{ maxWidth: 150 }}>
             <Field value={local.wasteFactorPct} onChange={v => setLocal(d => ({ ...d, wasteFactorPct: v }))} suffix="%" />
+          </div>
+        </div>
+
+        <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: GOLD, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>ABC Supply Live Pricing (reference)</div>
+          <div style={{ fontSize: 11, color: MUTED, marginBottom: 14 }}>
+            Cross-check only — never auto-applied to Good/Better/Best above. ABC prices per its own unit (roll,
+            bundle...), not necessarily $/square, so it's on you to decide whether/how a live number should move
+            the base prices.
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>Ship-To Account Number</label>
+            <input
+              value={local.abcSupply.shipToAccountNumber}
+              onChange={e => setAbcField("shipToAccountNumber")(e.target.value)}
+              placeholder="e.g. 1234567"
+              style={{ width: "100%", maxWidth: 240, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "10px", fontSize: 14, fontFamily: "monospace", boxSizing: "border-box" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+            {local.abcSupply.referenceItems.map((item, i) => {
+              const live = local.abcSupply.livePrices[item.abcSupplyItemId];
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 0.8fr auto", gap: 8, alignItems: "center" }}>
+                  <input value={item.label} onChange={e => setAbcItem(i, "label")(e.target.value)} placeholder="e.g. TPO membrane 60-mil"
+                    style={{ background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "8px 10px", fontSize: 13, fontFamily: "inherit" }} />
+                  <input value={item.abcSupplyItemId} onChange={e => setAbcItem(i, "abcSupplyItemId")(e.target.value)} placeholder="ABC item ID"
+                    style={{ background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "8px 10px", fontSize: 13, fontFamily: "monospace" }} />
+                  <input value={item.unit} onChange={e => setAbcItem(i, "unit")(e.target.value)} placeholder="unit"
+                    style={{ background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "8px 10px", fontSize: 13, fontFamily: "inherit" }} />
+                  <button onClick={() => removeAbcItem(i)} title="Remove" style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 7, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                  {live && (
+                    <div style={{ gridColumn: "1 / -1", fontSize: 12, color: TEAL }}>
+                      Live: ${live.unitPrice}/{live.unitOfMeasure || item.unit || "?"} — fetched {new Date(live.fetchedAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={addAbcItem} style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 7, padding: "8px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>+ Add reference item</button>
+            <button onClick={refreshAbcPricing} disabled={abcRefreshing} style={{ background: `${TEAL}22`, border: `1px solid ${TEAL}`, color: TEAL, borderRadius: 7, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              {abcRefreshing ? "Refreshing…" : "🔄 Refresh Live Pricing"}
+            </button>
+            {abcError && <span style={{ color: "#f87171", fontSize: 12 }}>{abcError}</span>}
           </div>
         </div>
 
