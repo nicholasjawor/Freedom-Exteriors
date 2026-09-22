@@ -48,6 +48,70 @@ function fmt(n) {
   return "$" + Math.round(n).toLocaleString();
 }
 
+export function catalogItemLabel(item) {
+  const parts = [item.manufacturer, item.style, item.color].filter(Boolean);
+  return (parts.join(" — ") || "(unnamed product)") + ` — $${(parseFloat(item.ratePerSq) || 0).toLocaleString()}/sq`;
+}
+
+// ─── Materials Catalog (admin configures once, feeds Good/Better/Best) ──────
+export function MaterialsCatalogSettings({ catalog, onSave, onClose }) {
+  const [local, setLocal] = useState(catalog && catalog.length ? catalog : []);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const save = () => { onSave(local); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800); };
+  const addItem = () => setLocal(items => [...items, { id: Date.now() + Math.random(), manufacturer: "", style: "", color: "", ratePerSq: "" }]);
+  const removeItem = (id) => setLocal(items => items.filter(i => i.id !== id));
+  const updateItem = (id, key, val) => setLocal(items => items.map(i => i.id === id ? { ...i, [key]: val } : i));
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div style={{ position: "sticky", top: 0, background: PANEL2, borderBottom: `1px solid ${BORDER}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 5 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 17, letterSpacing: 1 }}>
+          <span style={{ color: TEAL }}>FREEDOM </span><span style={{ color: GOLD }}>EXTERIORS</span>
+          <span style={{ color: MUTED, fontWeight: 500, fontSize: 13, marginLeft: 10 }}>Materials Catalog</span>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {savedFlash && <span style={{ color: TEAL, fontSize: 12, fontWeight: 700 }}>✓ Saved</span>}
+          <button onClick={save} style={{ background: `${TEAL}22`, border: `1px solid ${TEAL}`, color: TEAL, borderRadius: 7, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>💾 Save</button>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 7, padding: "9px 14px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>✕ Close</button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: 18 }}>
+        <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.6 }}>
+          Real products with real $/sq rates. On any job's Good/Better/Best pricing, you can pick a specific product here for each tier instead of the flat default rate — the surcharge math (pitch, story, waste) still applies exactly like it does today.
+        </div>
+
+        {local.map(item => (
+          <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 9, padding: 10 }}>
+            <input type="text" placeholder="Manufacturer (e.g. GAF)" value={item.manufacturer}
+              onChange={e => updateItem(item.id, "manufacturer", e.target.value)}
+              style={{ flex: 1.2, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}/>
+            <input type="text" placeholder="Style (e.g. Architectural)" value={item.style}
+              onChange={e => updateItem(item.id, "style", e.target.value)}
+              style={{ flex: 1.2, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}/>
+            <input type="text" placeholder="Color" value={item.color}
+              onChange={e => updateItem(item.id, "color", e.target.value)}
+              style={{ flex: 1, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}/>
+            <div style={{ position: "relative", flex: 0.8 }}>
+              <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: MUTED, fontSize: 13 }}>$</span>
+              <input type="number" min="0" step="0.01" placeholder="0" value={item.ratePerSq}
+                onChange={e => updateItem(item.id, "ratePerSq", e.target.value)}
+                style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 8px 9px 18px", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }}/>
+            </div>
+            <span style={{ color: MUTED, fontSize: 11 }}>/sq</span>
+            <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>✕</button>
+          </div>
+        ))}
+
+        {local.length === 0 && <div style={{ textAlign: "center", color: MUTED, padding: "20px 0" }}>No products yet — add your first one below.</div>}
+
+        <button onClick={addItem} style={{ width: "100%", background: "none", border: `1px dashed ${BORDER}`, color: MUTED, borderRadius: 9, padding: "12px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}>+ Add Product</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pricing Settings Screen (admin configures once) ────────────────────────
 export function PricingSettings({ pricing, onSave, onClose }) {
   const [local, setLocal] = useState(pricing || DEFAULT_PRICING);
@@ -138,7 +202,7 @@ function storySurchargePct(stories, bands) {
   return capped ? parseFloat(capped.pct) || 0 : 0;
 }
 
-export function calcGoodBetterBest({ sqFt, pitch, stories, pricing }) {
+export function calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverrides }) {
   const p = pricing || DEFAULT_PRICING;
   const area = parseFloat(sqFt) || 0;
   const withWaste = area * (1 + (parseFloat(p.wasteFactorPct) || 0) / 100);
@@ -152,16 +216,17 @@ export function calcGoodBetterBest({ sqFt, pitch, stories, pricing }) {
     return { perSquare, total: perSquare * squares };
   };
 
+  const o = baseOverrides || {};
   return {
     squares, pitchPct, storyPct, totalMultiplier,
-    good: tier(p.baseGood),
-    better: tier(p.baseBetter),
-    best: tier(p.baseBest),
+    good: tier(o.good != null ? o.good : p.baseGood),
+    better: tier(o.better != null ? o.better : p.baseBetter),
+    best: tier(o.best != null ? o.best : p.baseBest),
   };
 }
 
 // ─── Good/Better/Best Calculator (used on a job) ────────────────────────────
-export default function GoodBetterBest({ job, pricing, onSave, onClose, onOpenSettings, isAdmin }) {
+export default function GoodBetterBest({ job, pricing, catalog, onSave, onClose, onOpenSettings, isAdmin }) {
   const [sqFt, setSqFt] = useState(job.gbb?.sqFt || job.hoverMeasurements?.totalArea || "");
   const [pitch, setPitch] = useState(job.gbb?.pitch || "");
   const [stories, setStories] = useState(job.gbb?.stories || 1);
@@ -170,11 +235,18 @@ export default function GoodBetterBest({ job, pricing, onSave, onClose, onOpenSe
   const [fetchError, setFetchError] = useState(null);
   const [fetchInfo, setFetchInfo] = useState(null);
   const [lowConfidence, setLowConfidence] = useState(false);
+  const [productIds, setProductIds] = useState(job.gbb?.productIds || { good: "", better: "", best: "" });
 
-  const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing });
+  const findProduct = (id) => (catalog || []).find(p => String(p.id) === String(id));
+  const baseOverrides = {
+    good: productIds.good ? parseFloat(findProduct(productIds.good)?.ratePerSq) : null,
+    better: productIds.better ? parseFloat(findProduct(productIds.better)?.ratePerSq) : null,
+    best: productIds.best ? parseFloat(findProduct(productIds.best)?.ratePerSq) : null,
+  };
+  const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverrides });
 
   const save = () => {
-    onSave({ gbb: { sqFt, pitch, stories, result, calculatedAt: new Date().toISOString() } });
+    onSave({ gbb: { sqFt, pitch, stories, productIds, result, calculatedAt: new Date().toISOString() } });
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1800);
   };
@@ -275,16 +347,27 @@ export default function GoodBetterBest({ job, pricing, onSave, onClose, onOpenSe
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {[
-                { key: "good", label: "GOOD", color: "#38bdf8", data: result.good },
-                { key: "better", label: "BETTER", color: GOLD, data: result.better },
-                { key: "best", label: "BEST", color: GREEN, data: result.best },
-              ].map(t => (
-                <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
-                </div>
-              ))}
+                { key: "good", baseKey: "baseGood", label: "GOOD", color: "#38bdf8", data: result.good },
+                { key: "better", baseKey: "baseBetter", label: "BETTER", color: GOLD, data: result.better },
+                { key: "best", baseKey: "baseBest", label: "BEST", color: GREEN, data: result.best },
+              ].map(t => {
+                const selectedProduct = findProduct(productIds[t.key]);
+                return (
+                  <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
+                    {catalog && catalog.length > 0 && (
+                      <select value={productIds[t.key]} onChange={e => setProductIds(p => ({ ...p, [t.key]: e.target.value }))}
+                        style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 4px", fontSize: 10.5, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}>
+                        <option value="">Default rate (${(pricing || DEFAULT_PRICING)[t.baseKey]}/sq)</option>
+                        {catalog.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
+                      </select>
+                    )}
+                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
+                    {selectedProduct && <div style={{ fontSize: 10, color: t.color, marginTop: 6 }}>{[selectedProduct.manufacturer, selectedProduct.style, selectedProduct.color].filter(Boolean).join(" · ")}</div>}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

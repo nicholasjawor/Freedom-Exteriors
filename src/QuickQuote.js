@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calcGoodBetterBest } from "./GoodBetterBest";
+import { calcGoodBetterBest, catalogItemLabel, DEFAULT_PRICING } from "./GoodBetterBest";
 
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -26,7 +26,7 @@ function fmt(n) {
 }
 
 // ─── Quick Quote — no job attached, just an address in / pricing out ────────
-export default function QuickQuote({ pricing, onClose }) {
+export default function QuickQuote({ pricing, catalog, onClose }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -44,7 +44,14 @@ export default function QuickQuote({ pricing, onClose }) {
   const [fetchInfo, setFetchInfo] = useState(null);
   const [lowConfidence, setLowConfidence] = useState(false);
 
-  const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing });
+  const [productIds, setProductIds] = useState({ good: "", better: "", best: "" });
+  const findProduct = (id) => (catalog || []).find(p => String(p.id) === String(id));
+  const baseOverrides = {
+    good: productIds.good ? parseFloat(findProduct(productIds.good)?.ratePerSq) : null,
+    better: productIds.better ? parseFloat(findProduct(productIds.better)?.ratePerSq) : null,
+    best: productIds.best ? parseFloat(findProduct(productIds.best)?.ratePerSq) : null,
+  };
+  const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverrides });
 
   const autoFillFromGoogle = async () => {
     if (!address || !city || !state) { setFetchError("Enter an address, city, and state first."); return; }
@@ -143,16 +150,27 @@ export default function QuickQuote({ pricing, onClose }) {
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {[
-                { key: "good", label: "GOOD", color: "#38bdf8", data: result.good },
-                { key: "better", label: "BETTER", color: GOLD, data: result.better },
-                { key: "best", label: "BEST", color: GREEN, data: result.best },
-              ].map(t => (
-                <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
-                </div>
-              ))}
+                { key: "good", baseKey: "baseGood", label: "GOOD", color: "#38bdf8", data: result.good },
+                { key: "better", baseKey: "baseBetter", label: "BETTER", color: GOLD, data: result.better },
+                { key: "best", baseKey: "baseBest", label: "BEST", color: GREEN, data: result.best },
+              ].map(t => {
+                const selectedProduct = findProduct(productIds[t.key]);
+                return (
+                  <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
+                    {catalog && catalog.length > 0 && (
+                      <select value={productIds[t.key]} onChange={e => setProductIds(p => ({ ...p, [t.key]: e.target.value }))}
+                        style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 4px", fontSize: 10.5, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}>
+                        <option value="">Default rate (${(pricing || DEFAULT_PRICING)[t.baseKey]}/sq)</option>
+                        {catalog.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
+                      </select>
+                    )}
+                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
+                    {selectedProduct && <div style={{ fontSize: 10, color: t.color, marginTop: 6 }}>{[selectedProduct.manufacturer, selectedProduct.style, selectedProduct.color].filter(Boolean).join(" · ")}</div>}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

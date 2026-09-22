@@ -9,7 +9,7 @@ import LienNotice from "./LienNotice";
 import CancellationNotice from "./CancellationNotice";
 import DocsAcknowledgement from "./DocsAcknowledgement";
 import SDCancellationNotice from "./SDCancellationNotice";
-import GoodBetterBest, { PricingSettings, DEFAULT_PRICING } from "./GoodBetterBest";
+import GoodBetterBest, { PricingSettings, MaterialsCatalogSettings, DEFAULT_PRICING } from "./GoodBetterBest";
 import QuickQuote from "./QuickQuote";
 /* eslint-disable react-hooks/exhaustive-deps */
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
@@ -372,6 +372,11 @@ async function deleteJobRow(id) {
 // Company-wide pricing config, stored under a reserved job_id (-1) so it survives
 // and syncs across devices without needing a separate database table.
 const PRICING_CONFIG_ID = -1;
+// Company-wide materials catalog (manufacturer/style/color/$-per-sq), same reserved-row
+// pattern under a second reserved job_id (-2) — keeps the single-JSONB-column architecture.
+const MATERIALS_CATALOG_ID = -2;
+const RESERVED_IDS = [PRICING_CONFIG_ID, MATERIALS_CATALOG_ID];
+
 async function loadPricingConfig() {
   try {
     const { data, error } = await supabase.from("jobs").select("data").eq("job_id", PRICING_CONFIG_ID).maybeSingle();
@@ -391,6 +396,29 @@ async function savePricingConfig(pricing) {
     if (error) throw error;
   } catch (e) {
     console.error("Failed to save pricing config:", e);
+    throw e;
+  }
+}
+
+async function loadMaterialsCatalog() {
+  try {
+    const { data, error } = await supabase.from("jobs").select("data").eq("job_id", MATERIALS_CATALOG_ID).maybeSingle();
+    if (error) throw error;
+    return data?.data?.catalog || [];
+  } catch (e) {
+    console.error("Failed to load materials catalog:", e);
+    return [];
+  }
+}
+async function saveMaterialsCatalog(catalog) {
+  try {
+    const { error } = await supabase.from("jobs").upsert(
+      [{ job_id: MATERIALS_CATALOG_ID, user_email: "all", data: { id: MATERIALS_CATALOG_ID, catalog } }],
+      { onConflict: "job_id" }
+    );
+    if (error) throw error;
+  } catch (e) {
+    console.error("Failed to save materials catalog:", e);
     throw e;
   }
 }
@@ -437,6 +465,7 @@ export default function Pipeline({ session }) {
   const [sdNoticeOpen, setSdNoticeOpen] = useState(false);
   const [gbbOpen, setGbbOpen] = useState(false);
   const [pricingSettingsOpen, setPricingSettingsOpen] = useState(false);
+  const [materialsCatalogOpen, setMaterialsCatalogOpen] = useState(false);
   const [quickQuoteOpen, setQuickQuoteOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -445,17 +474,19 @@ export default function Pipeline({ session }) {
   const [pendingPhotos, setPendingPhotos] = useState([]);
   useEffect(() => { setPendingPhotos([]); }, [selected?.id]);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
+  const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [abcFilter, setAbcFilter] = useState("All");
 
-  useEffect(() => { loadJobs().then(d => { setJobs(d.filter(j => j.id !== PRICING_CONFIG_ID)); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
+  useEffect(() => { loadJobs().then(d => { setJobs(d.filter(j => !RESERVED_IDS.includes(j.id))); }).catch(() => {}).finally(() => { setLoading(false); }); }, []);
   useEffect(() => { loadPricingConfig().then(setPricing); }, []);
+  useEffect(() => { loadMaterialsCatalog().then(setMaterialsCatalog); }, []);
 
   // Manual re-sync from Supabase (also used by the 60s polling fallback)
   const resync = useCallback(async () => {
     setSaveStatus("saving");
     try {
       const fresh = await loadJobs();
-      const cleaned = fresh.filter(j => j.id !== PRICING_CONFIG_ID);
+      const cleaned = fresh.filter(j => !RESERVED_IDS.includes(j.id));
       if (cleaned.length > 0 || jobs.length === 0) setJobs(cleaned);
       setSaveStatus("saved");
     } catch { setSaveStatus("error"); }
@@ -463,7 +494,7 @@ export default function Pipeline({ session }) {
 
   // Polling fallback — every 60s, re-fetch in case realtime dropped (common on iPhone Safari)
   useEffect(() => {
-    const t = setInterval(() => { loadJobs().then(fresh => { const cleaned = fresh.filter(j => j.id !== PRICING_CONFIG_ID); if (cleaned.length) setJobs(cleaned); }).catch(() => {}); }, 60000);
+    const t = setInterval(() => { loadJobs().then(fresh => { const cleaned = fresh.filter(j => !RESERVED_IDS.includes(j.id)); if (cleaned.length) setJobs(cleaned); }).catch(() => {}); }, 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -473,12 +504,13 @@ export default function Pipeline({ session }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (payload) => {
         if (payload.eventType === "DELETE") {
           const deletedId = payload.old?.job_id;
-          if (deletedId == null || deletedId === PRICING_CONFIG_ID) return;
+          if (deletedId == null || RESERVED_IDS.includes(deletedId)) return;
           setJobs(prev => prev.filter(j => j.id !== deletedId));
         } else {
           const incoming = payload.new?.data;
           if (!incoming || incoming.id == null) return;
           if (incoming.id === PRICING_CONFIG_ID) { if (incoming.pricing) setPricing(incoming.pricing); return; }
+          if (incoming.id === MATERIALS_CATALOG_ID) { if (incoming.catalog) setMaterialsCatalog(incoming.catalog); return; }
           setJobs(prev => {
             const exists = prev.some(j => j.id === incoming.id);
             return exists
@@ -555,6 +587,11 @@ export default function Pipeline({ session }) {
   const savePricing = async (newPricing) => {
     setPricing(newPricing);
     try { await savePricingConfig(newPricing); } catch (e) { console.error(e); }
+  };
+
+  const saveCatalog = async (newCatalog) => {
+    setMaterialsCatalog(newCatalog);
+    try { await saveMaterialsCatalog(newCatalog); } catch (e) { console.error(e); }
   };
 
   const moveStage = (job, dir) => {
@@ -675,6 +712,7 @@ export default function Pipeline({ session }) {
             </button>
           )}
           {!isMobile && isAdmin && <button onClick={() => setPricingSettingsOpen(true)} style={{ background:"none", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>📐 Pricing</button>}
+          {!isMobile && isAdmin && <button onClick={() => setMaterialsCatalogOpen(true)} style={{ background:"none", border:"1px solid #a78bfa", color:"#a78bfa", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧱 Materials</button>}
           {isAdmin && <button onClick={() => setQuickQuoteOpen(true)} title="Quick Quote" style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧮{!isMobile && " Quick Quote"}</button>}
           {!isMobile && <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QB</button>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{isMobile?"↪":"Sign Out"}</button>
@@ -1363,6 +1401,7 @@ export default function Pipeline({ session }) {
         <GoodBetterBest
           job={selected}
           pricing={pricing}
+          catalog={materialsCatalog}
           isAdmin={isAdmin}
           onSave={(patch) => { updateJob(selected.id, patch); }}
           onClose={() => setGbbOpen(false)}
@@ -1376,6 +1415,15 @@ export default function Pipeline({ session }) {
           pricing={pricing}
           onSave={(p) => { savePricing(p); }}
           onClose={() => setPricingSettingsOpen(false)}
+        />
+      )}
+
+      {/* MATERIALS CATALOG (admin) */}
+      {materialsCatalogOpen && (
+        <MaterialsCatalogSettings
+          catalog={materialsCatalog}
+          onSave={(c) => { saveCatalog(c); }}
+          onClose={() => setMaterialsCatalogOpen(false)}
         />
       )}
 
@@ -1441,6 +1489,7 @@ export default function Pipeline({ session }) {
       {quickQuoteOpen && (
         <QuickQuote
           pricing={pricing}
+          catalog={materialsCatalog}
           onClose={() => setQuickQuoteOpen(false)}
         />
       )}
