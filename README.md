@@ -66,3 +66,27 @@ import and why.
 disabled**, unlike the rest of your CRM's tables. That means the anon key can
 read/write every row until you enable it. Tell me what access rules you want
 (e.g. "service role only") and I'll apply it directly.
+
+## ABC Supply live pricing (Pricing Settings → cross-check only)
+
+`GoodBetterBest.js`'s Pricing Settings screen has an "ABC Supply Live
+Pricing" section — never auto-applied to Good/Better/Best, just a reference
+you decide whether to act on. `api/abc-supply-pricing.js` is a thin
+forwarder to a **shared Supabase Edge Function** (`abc-supply-pricing`,
+deployed in this app's own Supabase project — `klfrqwplazjryeppamtk`) that
+also serves the separate bid-estimator app, so the real OAuth2/Price Items
+integration and the ABC client secret live in exactly one place instead of
+being duplicated across both apps' codebases.
+
+Required Vercel env vars (this app doesn't hold the ABC secret itself):
+- `ABC_SUPPLY_EDGE_FUNCTION_URL` = `https://klfrqwplazjryeppamtk.supabase.co/functions/v1/abc-supply-pricing`
+- `ABC_SUPPLY_INTERNAL_API_KEY` — must match the Edge Function's `INTERNAL_API_KEY` secret
+
+**Still needs your action**: the Edge Function's own Supabase secrets
+(`ABC_SUPPLY_CLIENT_ID`, `ABC_SUPPLY_CLIENT_SECRET`, `ABC_SUPPLY_ENV`,
+`INTERNAL_API_KEY`) haven't been set — do that via the Supabase Dashboard
+(Edge Functions → abc-supply-pricing → Secrets) or `supabase secrets set`,
+not via either app's codebase; also a Sandbox Ship-To number (via `Search
+Accounts`) and real item numbers (via `Search Items`) — neither endpoint's
+exact path is confirmed yet, so look them up via the Developer Portal
+directly for now.
