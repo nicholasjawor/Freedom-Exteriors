@@ -83,18 +83,35 @@ export default async function handler(req, res) {
 
       const jobData = await jobRes.json();
       const job = jobData.job || jobData;
+
+      // Roof numbers live on the measurements endpoint, not the job record.
+      // Keep Hover's raw summary alongside our fields so the mapping can be
+      // checked against real data.
+      const measRes = await fetch(`https://hover.to/api/v2/jobs/${hoverId}/measurements.json?version=summarized_json`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let summary = null;
+      let measurementsStatus = measRes.status;
+      if (measRes.ok) {
+        summary = await measRes.json().catch(() => null);
+      }
+
+      const roof = summary?.roof || summary?.roofing || {};
+      const num = (...vals) => { for (const v of vals) { const n = typeof v === "object" && v !== null ? (v.total ?? v.length ?? v.area ?? v.value) : v; if (n !== undefined && n !== null && !isNaN(Number(n))) return Number(n); } return null; };
       const measurements = {
-        totalRoofArea: job.total_roof_area || null,
-        predominantPitch: job.predominant_pitch || null,
-        ridgeLength: job.ridge_length || null,
-        valleyLength: job.valley_length || null,
-        hipLength: job.hip_length || null,
-        rakeLength: job.rake_length || null,
-        eavesLength: job.eaves_length || null,
-        flashingLength: job.flashing_length || null,
-        stepFlashingLength: job.step_flashing_length || null,
-        facets: job.facets?.length || null,
+        totalRoofArea: num(roof.area, roof.total_area, roof.roof_area, summary?.total_roof_area),
+        predominantPitch: roof.predominant_pitch ?? roof.pitch?.predominant ?? (Array.isArray(roof.pitch) ? roof.pitch[0]?.roof_pitch ?? roof.pitch[0]?.pitch : null) ?? null,
+        ridgeLength: num(roof.ridges, roof.ridge, roof.ridges_hips?.ridges, roof.ridge_length),
+        hipLength: num(roof.hips, roof.hip, roof.ridges_hips?.hips, roof.hip_length),
+        valleyLength: num(roof.valleys, roof.valley, roof.valley_length),
+        rakeLength: num(roof.rakes, roof.rake, roof.rake_length),
+        eavesLength: num(roof.eaves, roof.gutters_eaves, roof.eave, roof.eaves_length),
+        flashingLength: num(roof.flashing, roof.flashing_length),
+        stepFlashingLength: num(roof.step_flashing, roof.step_flashing_length),
+        facets: num(roof.facets?.count, Array.isArray(roof.facets) ? roof.facets.length : roof.facets),
         address: job.address || null,
+        measurementsStatus,
+        rawSummary: summary,
         fetchedAt: new Date().toISOString(),
       };
       return res.status(200).json({ success: true, measurements });
