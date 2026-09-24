@@ -94,7 +94,7 @@ const JOB_TYPES = [
   "Repair", "Exterior Misc",
 ];
 const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual","American Family","Auto-Owners","USAA","Other","None / OOP"];
-const STATES = ["MN","WI","IA","SD","PA"];
+const STATES = ["MN","WI"];
 const STATE_COLORS = { MN: "#1a9e99", WI: "#e8a820", IA: "#a78bfa", SD: "#38bdf8", PA: "#fb923c" };
 const stateColor = s => STATE_COLORS[s] || "#6b8099";
 
