@@ -96,19 +96,34 @@ export default async function handler(req, res) {
         summary = await measRes.json().catch(() => null);
       }
 
-      const roof = summary?.roof || summary?.roofing || {};
-      const num = (...vals) => { for (const v of vals) { const n = typeof v === "object" && v !== null ? (v.total ?? v.length ?? v.area ?? v.value) : v; if (n !== undefined && n !== null && !isNaN(Number(n))) return Number(n); } return null; };
+      // Mapping for Hover's summarized_json (confirmed against a real job): each
+      // roof line item has { total: count, length: feet }; facets carry area.
+      const roof = summary?.roof || {};
+      const n = (v) => (v === null || v === undefined || isNaN(Number(v)) ? null : Math.round(Number(v) * 100) / 100);
+      const len = (key) => n(roof[key]?.length);
+      const pitches = Array.isArray(roof.pitch)
+        ? roof.pitch.map(p => ({ pitch: p.roof_pitch, area: n(p.area), percentage: n(p.percentage) })).sort((a, b) => (b.area || 0) - (a.area || 0))
+        : [];
+      const rise = (p) => Number(String(p || "").split("/")[0]);
+      const totalRoofArea = n(roof.roof_facets?.area);
+      const eavesLength = len("gutters_eaves");
+      const rakeLength = len("rakes");
+      const waste = roof.waste_factor?.area || {};
       const measurements = {
-        totalRoofArea: num(roof.area, roof.total_area, roof.roof_area, summary?.total_roof_area),
-        predominantPitch: roof.predominant_pitch ?? roof.pitch?.predominant ?? (Array.isArray(roof.pitch) ? roof.pitch[0]?.roof_pitch ?? roof.pitch[0]?.pitch : null) ?? null,
-        ridgeLength: num(roof.ridges, roof.ridge, roof.ridges_hips?.ridges, roof.ridge_length),
-        hipLength: num(roof.hips, roof.hip, roof.ridges_hips?.hips, roof.hip_length),
-        valleyLength: num(roof.valleys, roof.valley, roof.valley_length),
-        rakeLength: num(roof.rakes, roof.rake, roof.rake_length),
-        eavesLength: num(roof.eaves, roof.gutters_eaves, roof.eave, roof.eaves_length),
-        flashingLength: num(roof.flashing, roof.flashing_length),
-        stepFlashingLength: num(roof.step_flashing, roof.step_flashing_length),
-        facets: num(roof.facets?.count, Array.isArray(roof.facets) ? roof.facets.length : roof.facets),
+        totalRoofArea, // sq ft, no waste
+        squares: totalRoofArea !== null ? n(totalRoofArea / 100) : null,
+        areaWithWaste: { plus5: n(waste.plus_5_percent), plus10: n(waste.plus_10_percent), plus15: n(waste.plus_15_percent), plus20: n(waste.plus_20_percent) },
+        facets: n(roof.roof_facets?.total),
+        predominantPitch: pitches[0]?.pitch ?? null,
+        pitches,
+        lowSlopeArea: pitches.length ? n(pitches.filter(p => rise(p.pitch) < 4).reduce((sum, p) => sum + (p.area || 0), 0)) : null, // under 4/12
+        ridgeHipLength: len("ridges_hips"), // Hover reports ridges and hips combined
+        valleyLength: len("valleys"),
+        eavesLength,
+        rakeLength,
+        dripEdgeLength: eavesLength !== null && rakeLength !== null ? n(eavesLength + rakeLength) : null, // eaves + rakes perimeter
+        flashingLength: len("flashing"),
+        stepFlashingLength: len("step_flashing"),
         address: job.address || null,
         measurementsStatus,
         rawSummary: summary,

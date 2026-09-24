@@ -284,7 +284,7 @@ export function calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverride
 
 // ─── Good/Better/Best Calculator (used on a job) ────────────────────────────
 export default function GoodBetterBest({ job, pricing, catalog, onSave, onClose, onOpenSettings, isAdmin }) {
-  const [sqFt, setSqFt] = useState(job.gbb?.sqFt || job.hoverMeasurements?.totalArea || "");
+  const [sqFt, setSqFt] = useState(job.gbb?.sqFt || job.hoverMeasurements?.totalRoofArea || "");
   const [pitch, setPitch] = useState(job.gbb?.pitch || "");
   const [stories, setStories] = useState(job.gbb?.stories || 1);
   const [savedFlash, setSavedFlash] = useState(false);
