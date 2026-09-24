@@ -1,12 +1,23 @@
 {
   "rewrites": [
-    { "source": "/quickbooks/callback", "destination": "/api/quickbooks?action=callback" },
-    { "source": "/hover/callback", "destination": "/api/hover?action=callback" }
+    {
+      "source": "/quickbooks/callback",
+      "destination": "/api/quickbooks?action=callback"
+    },
+    {
+      "source": "/hover/callback",
+      "destination": "/api/hover?action=callback"
+    }
   ],
   "crons": [
     {
       "path": "/api/send-reminders",
       "schedule": "0 13 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/scope-review.js": {
+      "maxDuration": 300
+    }
+  }
 }
