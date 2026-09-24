@@ -43,13 +43,24 @@ export default function Portal({ token }) {
       if (!error && data) {
         let jobData = data;
 
-        // If redirected back from Stripe with ?paid=true, mark deposit as paid
+        // Back from Stripe Checkout: the server verifies the session with Stripe
+        // before marking the deposit paid.
         const params = new URLSearchParams(window.location.search);
-        if (params.get("paid") === "true" && !jobData.depositPaid) {
-          const { data: updated } = await supabase.rpc("portal_mark_deposit_paid", { p_token: token });
-          if (updated) jobData = updated;
-          window.history.replaceState({}, "", window.location.pathname);
+        const sessionId = params.get("session_id");
+        if (params.get("paid") === "true" && sessionId && !jobData.depositPaid) {
+          try {
+            const res = await fetch("/api/confirm-deposit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ portalToken: token, sessionId }),
+            });
+            const out = await res.json();
+            if (res.ok && out.job) jobData = out.job;
+          } catch (e) {
+            console.error("Could not confirm deposit:", e);
+          }
         }
+        if (params.get("paid")) window.history.replaceState({}, "", window.location.pathname);
 
         setJob(jobData);
       }
@@ -66,12 +77,7 @@ export default function Portal({ token }) {
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: job.estimate.downPayment,
-          customerName: job.name,
-          jobType: job.type,
-          portalToken: token,
-        }),
+        body: JSON.stringify({ portalToken: token }),
       });
       const data = await res.json();
       if (data.url) {

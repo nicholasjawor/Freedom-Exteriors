@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
+import { apiFetch } from "./apiFetch";
 import ContractFill from "./ContractFill";
 import CommissionWorkbook from "./CommissionWorkbook";
 import ContractorAgreement from "./ContractorAgreement";
@@ -574,8 +575,8 @@ export default function Pipeline({ session }) {
     updateJobs(prev => editing ? prev.map(j => j.id === form.id ? jobWithToken : j) : [...prev, jobWithToken], [jobWithToken.id]);
     if (isNew && form.email) {
       const portalLink = window.location.origin + "/portal/" + token;
-      if (isNew && form.phone) { fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! Freedom Exteriors here. We have received your project info. Track your progress here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e)); }
-      fetch("/api/send-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.email, homeownerName: form.name, jobType: form.type, portalLink }) });
+      if (isNew && form.phone) { apiFetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.phone, message: `Hi ${form.name}! Freedom Exteriors here. We have received your project info. Track your progress here: ${portalLink}` }) }).catch(e => console.warn("SMS failed:", e)); }
+      apiFetch("/api/send-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: form.email, homeownerName: form.name, jobType: form.type, portalLink }) });
     }
     setShowForm(false);
   };
@@ -597,7 +598,7 @@ export default function Pipeline({ session }) {
     const next = STAGES[idx + dir];
     if (!next) return;
     updateJob(job.id, { stage: next.id });
-    if (next && next.id === "collected" && job.phone) { fetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: job.phone, message: `Hi ${job.name}! Your project with Freedom Exteriors is complete. Thank you for choosing us! Please leave us a review: https://g.page/r/YOUR_GOOGLE_REVIEW_LINK` }) }).catch(e => console.warn("SMS failed:", e)); }
+    if (next && next.id === "collected" && job.phone) { apiFetch("/api/send-sms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: job.phone, message: `Hi ${job.name}! Your project with Freedom Exteriors is complete. Thank you for choosing us! Please leave us a review: https://g.page/r/YOUR_GOOGLE_REVIEW_LINK` }) }).catch(e => console.warn("SMS failed:", e)); }
   };
 
   const toggleFollowUp = id => updateJob(id, { followUp: !jobs.find(j => j.id === id)?.followUp });
@@ -670,7 +671,7 @@ export default function Pipeline({ session }) {
   const fetchHoverMeasurements = async (job) => {
     if (!job.hoverId) return;
     try {
-      const res = await fetch(`/api/hover?action=measurements&hoverId=${job.hoverId}`);
+      const res = await apiFetch(`/api/hover?action=measurements&hoverId=${encodeURIComponent(job.hoverId)}`);
       const data = await res.json();
       if (data.success) { updateJob(job.id, { hoverMeasurements: data.measurements }); alert("Hover measurements loaded!"); }
       else if (res.status === 401) { window.location.href = "/api/hover?action=auth"; }

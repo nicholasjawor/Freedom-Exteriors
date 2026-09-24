@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { calcGoodBetterBest, catalogItemLabel, calcAccessoryLine, DEFAULT_PRICING } from "./GoodBetterBest";
+import { apiFetch } from "./apiFetch";
 
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -69,7 +70,7 @@ export default function QuickQuote({ pricing, catalog, onClose }) {
     setFetchInfo(null);
     setLowConfidence(false);
     try {
-      const res = await fetch(`/api/solar?address=${encodeURIComponent(address)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}`);
+      const res = await apiFetch(`/api/solar?address=${encodeURIComponent(address)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}`);
       const data = await res.json();
       if (!res.ok || !data.success) { setFetchError(data.error || "Couldn't fetch roof data for this address."); setFetching(false); return; }
       setSqFt(data.totalAreaSqFt);

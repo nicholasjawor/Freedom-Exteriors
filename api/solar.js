@@ -1,5 +1,8 @@
+import { requireStaff } from "./_lib/supabase.js";
+
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (!(await requireStaff(req, res))) return;
   const { address, city, state } = req.query;
   if (!address || !city || !state) return res.status(400).json({ error: "Missing address, city, or state" });
 

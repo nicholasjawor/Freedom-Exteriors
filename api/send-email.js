@@ -1,5 +1,8 @@
+import { requireStaff } from "./_lib/supabase.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+  if (!(await requireStaff(req, res))) return;
 
   const { to, homeownerName, jobType, portalLink } = req.body;
 
