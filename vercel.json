@@ -5,6 +5,10 @@
       "destination": "/api/quickbooks?action=callback"
     },
     {
+      "source": "/api/hover/callback",
+      "destination": "/api/hover?action=callback"
+    },
+    {
       "source": "/hover/callback",
       "destination": "/api/hover?action=callback"
     }

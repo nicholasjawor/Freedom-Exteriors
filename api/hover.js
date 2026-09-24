@@ -5,8 +5,9 @@ import { requireStaff, supabaseAdmin } from "./_lib/supabase.js";
 const HOVER_TOKEN_URL = "https://hover.to/oauth/token";
 const HOVER_API_BASE = "https://hover.to/api/v3";
 // Must exactly match the redirect URI registered on the Hover integration
-// (Hover > Settings > Developer). vercel.json rewrites it to ?action=callback.
-const REDIRECT_URI = "https://freedom-exteriors.vercel.app/hover/callback";
+// (Hover > Settings > Developer > Freedom Exteriors CRM). vercel.json rewrites
+// it to /api/hover?action=callback.
+const REDIRECT_URI = "https://freedom-exteriors.vercel.app/api/hover/callback";
 
 async function getStoredToken() {
   const { data } = await supabaseAdmin().from("jobs").select("data").eq("user_email", "hover_token").maybeSingle();
