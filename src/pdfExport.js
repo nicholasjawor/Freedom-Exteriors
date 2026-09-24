@@ -300,30 +300,6 @@ export function exportCancellationNotice(data, job) {
   openPrint("Cancellation Notice (§ 326B.811)", html);
 }
 
-export function exportSDCancellationNotice(data, job) {
-  const copyHtml = (label, sig) => `
-    <div class="copy-label">${label}</div>
-    <div class="notice-box"><strong>NOTICE OF CANCELLATION</strong><br/>
-    Date of Transaction: <strong>${data.transactionDate || ""}</strong><br/><br/>
-    <strong>YOU MAY CANCEL THIS TRANSACTION, WITHOUT ANY PENALTY OR OBLIGATION, WITHIN THREE BUSINESS DAYS FROM THE ABOVE DATE.</strong><br/><br/>
-    If you cancel, any property traded in, any payments made by you under the contract or sale, and any negotiable instrument executed by you will be returned within ten business days following receipt by the seller of your cancellation notice, and any security interest arising out of the transaction will be canceled.<br/><br/>
-    If you cancel, you must make available to the seller, at your residence, in substantially as good condition as when received, any goods delivered to you under this contract or sale — or you may comply with the seller's instructions regarding return shipment at the seller's expense and risk.<br/><br/>
-    If you do make the goods available to the seller and the seller does not pick them up within twenty days of the date of your notice of cancellation, you may retain or dispose of the goods without any further obligation. If you fail to make the goods available, or agree to return them and fail to do so, you remain liable for performance of all obligations under the contract.<br/><br/>
-    To cancel this transaction, mail or deliver a signed and dated copy of this cancellation notice, or any other written notice, to:<br/>
-    <strong>Freedom Exteriors LLC · 1145 Summit Ave · Mahtomedi, MN 55115</strong><br/><br/>
-    <strong>I hereby cancel this transaction.</strong></div>
-    <div class="sig-block">${sigHtml(sig, "Buyer's Signature")}</div>`;
-
-  const html = `
-    <div class="doc-title"><h1>Notice of Cancellation</h1><h2>South Dakota — SDCL § 37-24-5.3 &amp; 5.4 — Furnished in duplicate</h2></div>
-    <div class="section"><div class="section-title">Buyer Information</div><div class="section-body">
-      <div class="grid2">${field("Buyer Name", data.buyerName)}${field("Property Address", data.propertyAddress)}</div>
-    </div></div>
-    ${copyHtml("Copy 1", data.copy1Signature)}
-    <div class="copy-divider">${copyHtml("Copy 2", data.copy2Signature)}</div>`;
-  openPrint("SD Notice of Cancellation (SDCL § 37-24-5.4)", html);
-}
-
 export function exportDocsAcknowledgement(data, job) {
   const docs = [
     "MN Statute 325E.66 — Insurance Deductible Notice",
