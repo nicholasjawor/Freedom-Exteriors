@@ -4,7 +4,9 @@ import { requireStaff, supabaseAdmin } from "./_lib/supabase.js";
 
 const HOVER_TOKEN_URL = "https://hover.to/oauth/token";
 const HOVER_API_BASE = "https://hover.to/api/v3";
-const REDIRECT_URI = "https://freedom-exteriors.vercel.app/api/hover?action=callback";
+// Must exactly match the redirect URI registered on the Hover integration
+// (Hover > Settings > Developer). vercel.json rewrites it to ?action=callback.
+const REDIRECT_URI = "https://freedom-exteriors.vercel.app/hover/callback";
 
 async function getStoredToken() {
   const { data } = await supabaseAdmin().from("jobs").select("data").eq("user_email", "hover_token").maybeSingle();
@@ -47,7 +49,7 @@ export default async function handler(req, res) {
   const action = req.query.action;
 
   if (action === "auth") {
-    const authUrl = `https://hover.to/oauth/authorize?client_id=${process.env.HOVER_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=jobs:read`;
+    const authUrl = `https://hover.to/oauth/authorize?client_id=${process.env.HOVER_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`;
     return res.redirect(authUrl);
   }
 
