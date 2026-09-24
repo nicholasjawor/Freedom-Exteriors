@@ -258,6 +258,12 @@ export default function Portal({ token }) {
                 </div>
               ))}
             </div>
+            {job.scopeReviewSummary?.text && (
+              <div style={{ background:PANEL, borderRadius:8, padding:14, border:`1px solid ${BORDER}`, borderLeft:"3px solid #10b981", marginBottom:14 }}>
+                <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>What we found in your insurance estimate</div>
+                <div style={{ fontSize:14, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{job.scopeReviewSummary.text}</div>
+              </div>
+            )}
             {job.estimate?.total > 0 && (
               <div style={{ background:PANEL, borderRadius:8, padding:14, border:`1px solid ${BORDER}`, marginBottom:14 }}>
                 <div style={{ fontSize:10, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Estimate Summary</div>
