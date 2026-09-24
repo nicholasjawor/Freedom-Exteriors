@@ -92,6 +92,7 @@ const JOB_TYPES = [
   "Roof + Siding", "Roof + Gutters", "Siding + Windows", "Siding + Gutters",
   "Gutters + Fascia + Soffit", "Full Exterior",
   "Repair", "Exterior Misc",
+  "Deck", "Outbuilding", "Other GC Work",
 ];
 const INSURERS = ["State Farm","Allstate","Travelers","Farmers","Liberty Mutual","American Family","Auto-Owners","USAA","Other","None / OOP"];
 const STATES = ["MN","WI"];
