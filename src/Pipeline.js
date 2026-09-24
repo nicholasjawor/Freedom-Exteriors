@@ -25,7 +25,6 @@ const STAGES = [
   { id: "installed",  label: "Installed",   color: TEAL,      icon: "🔨" },
   { id: "collected",  label: "Paid in Full",   color: "#10b981", icon: "💰" },
 ];
-const ADMIN_EMAILS = ["nicholasjawor@gmail.com", "nick@freedom-exteriors.com"];
 const REP_EMAILS = { Nick: "nick@freedom-exteriors.com", Victor: "victor@freedom-exteriors.com", Brett: "brett@freedom-exteriors.com" };
 
 // Fields a rep fills in during an inspection/sales visit, mapped to job schema keys.
@@ -415,7 +414,7 @@ async function saveMaterialsCatalog(catalog) {
 const blank = () => ({
   id: Date.now(), name:"", address:"", city:"", state:"MN", phone:"", email:"",
   type:"Roof", stage:"lead", claimNum:"", insurer:"State Farm", adjuster:"", adjPhone:"",
-  hoverId:"", notes:"", followUp:false, assigned:"Me", parLead:false,
+  hoverId:"", notes:"", followUp:false, assigned:"", parLead:false,
   added: new Date().toISOString().slice(0,10),
   photos:[], checklist:{}, materials:[], estimate:{total:0,downPayment:0,scope:"",deductible:0},
   contract:null, commission:{grossRevenue:0},
@@ -430,6 +429,17 @@ export default function Pipeline({ session }) {
   }, []);
 
   const [jobs, setJobs] = useState([]);
+  // Role + roster come from the `staff` table; RLS enforces what each role can load/save.
+  const [staffProfile, setStaffProfile] = useState(undefined); // undefined = loading, null = no access
+  const [staffNames, setStaffNames] = useState([]);
+  useEffect(() => {
+    const email = (session?.user?.email || "").toLowerCase();
+    supabase.from("staff").select("email,name,role").then(({ data, error }) => {
+      if (error) { console.error("Failed to load staff:", error); setStaffProfile(null); return; }
+      setStaffProfile((data || []).find(r => r.email === email) || null);
+      setStaffNames([...new Set((data || []).map(r => r.name))].sort());
+    });
+  }, [session]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("saved");
   const [saveError, setSaveError] = useState(null);
@@ -545,7 +555,7 @@ export default function Pipeline({ session }) {
   const stageObj = id => STAGES.find(s => s.id === id) || STAGES[0];
 
   const userEmail = session?.user?.email;
-  const isAdmin = ADMIN_EMAILS.includes(userEmail);
+  const isAdmin = staffProfile?.role === "admin";
 
   const filtered = jobs.filter(j => {
     if (filterStage !== "all" && j.stage !== filterStage) return false;
@@ -553,7 +563,7 @@ export default function Pipeline({ session }) {
     return true;
   });
 
-  const openNew = () => { setForm(blank()); setEditing(false); setShowForm(true); setSelected(null); };
+  const openNew = () => { setForm({ ...blank(), assigned: staffProfile?.name || "" }); setEditing(false); setShowForm(true); setSelected(null); };
   const openEdit = (job) => { setForm({...job}); setEditing(true); setShowForm(true); setSelected(null); };
 
   const saveJob = () => {
@@ -678,6 +688,16 @@ export default function Pipeline({ session }) {
     </div>
   );
 
+  if (staffProfile === null) return (
+    <div style={{ minHeight:"100vh", background:DARK, color:TEXT, fontFamily:"'Barlow','Segoe UI',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ textAlign:"center", maxWidth:360 }}>
+        <div style={{ fontWeight:800, fontSize:18, marginBottom:8 }}>No CRM access</div>
+        <div style={{ color:MUTED, fontSize:13, marginBottom:16 }}>{userEmail} isn't set up as a Freedom Exteriors team member. Ask Nick to add you.</div>
+        <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight:"100vh", background:DARK, color:TEXT, fontFamily:"'Barlow','Segoe UI',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet"/>
@@ -701,8 +721,8 @@ export default function Pipeline({ session }) {
           )}
           {!isMobile && isAdmin && <button onClick={() => setPricingSettingsOpen(true)} style={{ background:"none", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>📐 Pricing</button>}
           {!isMobile && isAdmin && <button onClick={() => setMaterialsCatalogOpen(true)} style={{ background:"none", border:"1px solid #a78bfa", color:"#a78bfa", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧱 Materials</button>}
-          {isAdmin && <button onClick={() => setQuickQuoteOpen(true)} title="Quick Quote" style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧮{!isMobile && " Quick Quote"}</button>}
-          {!isMobile && <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QB</button>}
+          {staffProfile && <button onClick={() => setQuickQuoteOpen(true)} title="Quick Quote" style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🧮{!isMobile && " Quick Quote"}</button>}
+          {!isMobile && isAdmin && <button onClick={() => window.location.href = "/api/quickbooks?action=auth"} style={{ background:"none", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:8, padding:"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>🔗 QB</button>}
           <button onClick={() => supabase.auth.signOut()} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:isMobile?"6px 10px":"8px 14px", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{isMobile?"↪":"Sign Out"}</button>
           <button onClick={openNew} style={{ background:GOLD, color:"#000", border:"none", borderRadius:8, padding:isMobile?"8px 14px":"8px 18px", fontWeight:800, fontSize:isMobile?12:13, cursor:"pointer", fontFamily:"inherit" }}>+ {isMobile?"New":"NEW JOB"}</button>
         </div>
@@ -964,7 +984,7 @@ export default function Pipeline({ session }) {
 
               {jobTab==="details" && (
                 <div>
-                  <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                  {isAdmin && <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
                     <a href={(() => { const e = buildRepEmail(selected); return `mailto:${e.to}?subject=${encodeURIComponent(e.subject)}&body=${encodeURIComponent(e.body)}`; })()}
                       style={{ background:"none", border:"1px solid #38bdf8", color:"#38bdf8", borderRadius:7, padding:"7px 12px", fontWeight:700, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}>
                       📧 Email to Rep{selected.assigned && selected.assigned!=="Nick" ? ` (${selected.assigned})` : ""}
@@ -973,7 +993,7 @@ export default function Pipeline({ session }) {
                       style={{ background:"none", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"7px 12px", fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
                       📥 Import from Email
                     </button>
-                  </div>
+                  </div>}
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
                     {[["Job Type",selected.type],["Assigned",selected.assigned],["Insurance",selected.insurer],["Claim #",selected.claimNum||"Not filed"],["Adjuster",selected.adjuster||"—"],["Adj. Phone",selected.adjPhone||"—"],["Date Added",selected.added]].map(([l,v]) => (
                       <div key={l} style={{ background:PANEL2, borderRadius:7, padding:"8px 10px" }}>
@@ -1018,13 +1038,13 @@ export default function Pipeline({ session }) {
                     <button onClick={() => setDocsAckOpen(true)} style={{ background:"#e8a82022", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📋 Docs Acknowledgement{selected.docsAcknowledgement?.homeownerSignature ? " ✓" : ""}</button>
                     <button onClick={() => setCommissionOpen(true)} style={{ background:GREEN+"22", border:`1px solid ${GREEN}`, color:GREEN, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>💰 Commission{selected.commission?.grossRevenue ? " ✓" : ""}</button>
                     <button onClick={() => setGbbOpen(true)} style={{ background:"#fbbf2422", border:"1px solid #fbbf24", color:"#fbbf24", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📐 Good/Better/Best{selected.gbb?.sqFt ? " ✓" : ""}</button>
-                    <button onClick={async () => { const token = selected.id + "-" + Math.random().toString(36).slice(2,8); const { data: rows } = await supabase.from("jobs").select("id,data").eq("user_email","all"); const row = rows?.find(j => j.data?.id === selected.id); if (row) await supabase.from("jobs").update({ portal_token: token }).eq("id", row.id); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
-                    {selected.stage === "collected" && (
+                    <button onClick={async () => { const token = selected.portal_token || (selected.id + "-" + Math.random().toString(36).slice(2,8)); if (!selected.portal_token) updateJob(selected.id, { portal_token: token }); const link = `${window.location.origin}/portal/${token}`; navigator.clipboard.writeText(link); alert("Portal link copied!"); }} style={{ background:GOLD+"22", border:`1px solid ${GOLD}`, color:GOLD, borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>🔗 Portal Link</button>
+                    {isAdmin && selected.stage === "collected" && (
                       <button onClick={async () => { const refreshToken = localStorage.getItem("qb_refresh_token"); if (refreshToken) { try { const refreshRes = await fetch("/api/quickbooks?action=refresh", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({refreshToken}) }); const refreshData = await refreshRes.json(); if (refreshData.access_token) { localStorage.setItem("qb_token", refreshData.access_token); localStorage.setItem("qb_refresh_token", refreshData.refresh_token); } } catch(e) { console.warn("Token refresh failed"); } } const res = await fetch("/api/quickbooks?action=invoice", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({realmId:localStorage.getItem("qb_realm"),accessToken:localStorage.getItem("qb_token"),job:selected}) }); const data = await res.json(); if (data.success) alert("Invoice created in QuickBooks!"); else alert("Error. Try reconnecting QuickBooks."); }} style={{ background:"#2CA01C22", border:"1px solid #2CA01C", color:"#2CA01C", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📊 QB Invoice</button>
                     )}
                     {selected.installDate && <button onClick={() => openGoogleCalendar(selected)} style={{ background:"#1a73e822", border:"1px solid #1a73e8", color:"#1a73e8", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📅 Add to Calendar</button>}
                     {selected.hoverId && <button onClick={() => fetchHoverMeasurements(selected)} style={{ background:"#ff6b2222", border:"1px solid #ff6b22", color:"#ff6b22", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700 }}>📐 Fetch Measurements</button>}
-                    <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>🗑️ Delete</button>
+                    {isAdmin && <button onClick={() => removeJob(selected.id)} style={{ background:"#7c2d1222", border:"1px solid #7c2d12", color:"#f87171", borderRadius:7, padding:"10px 14px", cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>🗑️ Delete</button>}
                   </div>
                 </div>
               )}
@@ -1254,7 +1274,10 @@ export default function Pipeline({ session }) {
             <Sec title="Hover & Assignment">
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:10 }}>
                 <F label="Hover Job ID" value={form.hoverId} onChange={v => setForm(p=>({...p,hoverId:v}))} placeholder="e.g. 1234567"/>
-                <F label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))} placeholder="e.g. Victor"/>
+                {isAdmin
+                  ? <Sel label="Assigned To" value={form.assigned} onChange={v => setForm(p=>({...p,assigned:v}))}
+                      options={[{ value:"", label:"Unassigned" }, ...[...new Set([...staffNames, ...(form.assigned ? [form.assigned] : [])])].map(n => ({ value:n, label:n }))]}/>
+                  : <F label="Assigned To" value={form.assigned} onChange={() => {}} disabled/>}
               </div>
               {form.hoverId && <a href={`https://hover.to/jobs/${form.hoverId}`} target="_blank" rel="noopener noreferrer" style={{ color:GOLD, fontSize:12, fontWeight:700, textDecoration:"none" }}>Open in Hover ↗</a>}
             </Sec>
@@ -1475,12 +1498,12 @@ function Sec({ title, children }) {
     </div>
   );
 }
-function F({ label, value, onChange, placeholder }) {
+function F({ label, value, onChange, placeholder, disabled }) {
   return (
     <div>
       <label style={{ display:"block", fontSize:9, fontWeight:700, color:MUTED, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</label>
-      <input value={value||""} onChange={e => onChange(e.target.value)} placeholder={placeholder||""}
-        style={{ width:"100%", background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"10px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", outline:"none" }}/>
+      <input value={value||""} onChange={e => onChange(e.target.value)} placeholder={placeholder||""} disabled={disabled}
+        style={{ width:"100%", opacity:disabled?0.6:1, background:PANEL2, border:`1px solid ${BORDER}`, borderRadius:7, color:TEXT, padding:"10px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", outline:"none" }}/>
     </div>
   );
 }

@@ -36,21 +36,18 @@ export default function Portal({ token }) {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("portal_token", token)
-        .single();
+      // Portal access goes through portal_* RPCs (SECURITY DEFINER), which only
+      // touch the job matching this token and only return portal-safe fields.
+      const { data, error } = await supabase.rpc("portal_get_job", { p_token: token });
 
       if (!error && data) {
-        let jobData = data.data;
+        let jobData = data;
 
         // If redirected back from Stripe with ?paid=true, mark deposit as paid
         const params = new URLSearchParams(window.location.search);
         if (params.get("paid") === "true" && !jobData.depositPaid) {
-          const updated = { ...jobData, depositPaid: true, depositPaidAt: new Date().toISOString() };
-          await supabase.from("jobs").update({ data: updated }).eq("id", data.id);
-          jobData = updated;
+          const { data: updated } = await supabase.rpc("portal_mark_deposit_paid", { p_token: token });
+          if (updated) jobData = updated;
           window.history.replaceState({}, "", window.location.pathname);
         }
 
@@ -144,17 +141,10 @@ export default function Portal({ token }) {
     setSigSaving(true);
     const canvas = canvasRef.current;
     const signatureImage = canvas.toDataURL("image/png");
-    const { data: row } = await supabase.from("jobs").select("id, data").eq("portal_token", token).single();
-    if (row) {
-      const updated = {
-        ...row.data,
-        portalSignature: typedName.trim(),
-        portalSignatureImage: signatureImage,
-        portalSignedAt: new Date().toISOString(),
-      };
-      await supabase.from("jobs").update({ data: updated }).eq("id", row.id);
-      setJob(updated);
-    }
+    const { data: updated, error } = await supabase.rpc("portal_save_signature", {
+      p_token: token, p_name: typedName.trim(), p_image: signatureImage,
+    });
+    if (!error && updated) setJob(updated);
     setSigSaving(false);
   };
 
@@ -162,12 +152,8 @@ export default function Portal({ token }) {
 
   const sendMessage = async () => {
     if (!message.trim()) return;
-    await supabase.from("messages").insert({
-      portal_token: token,
-      homeowner_name: job?.name || "Homeowner",
-      message: message.trim(),
-      read: false,
-    });
+    const { error } = await supabase.rpc("portal_send_message", { p_token: token, p_message: message.trim() });
+    if (error) return;
     setMessage("");
     setMsgSent(true);
   };
@@ -180,10 +166,8 @@ export default function Portal({ token }) {
       r.readAsDataURL(file);
     }));
     const newPhotos = await Promise.all(readers);
-    const { data: row } = await supabase.from("jobs").select("id, data").eq("portal_token", token).single();
-    if (row) {
-      const updated = { ...row.data, photos: [...(row.data.photos || []), ...newPhotos] };
-      await supabase.from("jobs").update({ data: updated }).eq("id", row.id);
+    const { data: updated, error } = await supabase.rpc("portal_add_photos", { p_token: token, p_photos: newPhotos });
+    if (!error && updated) {
       setJob(updated);
       setPhotos(prev => [...prev, ...newPhotos]);
     }
