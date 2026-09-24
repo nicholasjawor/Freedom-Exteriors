@@ -700,7 +700,7 @@ export default function Pipeline({ session }) {
           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:isMobile?18:24, letterSpacing:3, lineHeight:1 }}>
             <span style={{ color:TEAL }}>FREEDOM </span><span style={{ color:GOLD }}>EXTERIORS</span>
           </div>
-          {!isMobile && <div style={{ fontSize:9, letterSpacing:3, color:TEAL, fontWeight:700, textTransform:"uppercase", marginTop:2 }}>Veteran Owned &amp; Operated · MN · WI · IA · SD · PA</div>}
+          {!isMobile && <div style={{ fontSize:9, letterSpacing:3, color:TEAL, fontWeight:700, textTransform:"uppercase", marginTop:2 }}>Veteran Owned &amp; Operated · MN · WI</div>}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:8 }}>
           <button onClick={resync} title="Sync now" style={{ background:"none", border:`1px solid ${saveStatus==="error"?"#f87171":BORDER}`, color: saveStatus==="saved"?"#10b981":saveStatus==="saving"?GOLD:"#f87171", borderRadius:8, padding:isMobile?"6px 8px":"8px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
