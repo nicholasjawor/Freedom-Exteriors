@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calcGoodBetterBest, catalogItemLabel, DEFAULT_PRICING } from "./GoodBetterBest";
+import { calcGoodBetterBest, catalogItemLabel, calcAccessoryLine, DEFAULT_PRICING } from "./GoodBetterBest";
 
 const TEAL = "#1a9e99"; const GOLD = "#e8a820"; const DARK = "#080d14";
 const PANEL = "#0f1923"; const PANEL2 = "#162030"; const BORDER = "#1e3048";
@@ -45,6 +45,7 @@ export default function QuickQuote({ pricing, catalog, onClose }) {
   const [lowConfidence, setLowConfidence] = useState(false);
 
   const [productIds, setProductIds] = useState({ good: "", better: "", best: "" });
+  const [accessorySelections, setAccessorySelections] = useState({});
   const findProduct = (id) => (catalog || []).find(p => String(p.id) === String(id));
   const baseOverrides = {
     good: productIds.good ? parseFloat(findProduct(productIds.good)?.ratePerSq) : null,
@@ -52,6 +53,14 @@ export default function QuickQuote({ pricing, catalog, onClose }) {
     best: productIds.best ? parseFloat(findProduct(productIds.best)?.ratePerSq) : null,
   };
   const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverrides });
+
+  const accessories = (catalog || []).filter(i => i.itemType === "accessory");
+  const accessoryLines = accessories
+    .filter(item => accessorySelections[item.id]?.checked)
+    .map(item => ({ item, ...calcAccessoryLine(item, result.squares, accessorySelections[item.id]?.qty) }));
+  const accessoriesTotal = accessoryLines.reduce((sum, l) => sum + l.total, 0);
+  const toggleAccessory = (id) => setAccessorySelections(s => ({ ...s, [id]: { ...s[id], checked: !s[id]?.checked } }));
+  const setAccessoryQty = (id, qty) => setAccessorySelections(s => ({ ...s, [id]: { ...s[id], qty } }));
 
   const autoFillFromGoogle = async () => {
     if (!address || !city || !state) { setFetchError("Enter an address, city, and state first."); return; }
@@ -155,23 +164,53 @@ export default function QuickQuote({ pricing, catalog, onClose }) {
                 { key: "best", baseKey: "baseBest", label: "BEST", color: GREEN, data: result.best },
               ].map(t => {
                 const selectedProduct = findProduct(productIds[t.key]);
+                const shingleOptions = (catalog || []).filter(i => i.itemType !== "accessory");
+                const grandTotal = t.data.total + accessoriesTotal;
                 return (
                   <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
                     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
-                    {catalog && catalog.length > 0 && (
+                    {shingleOptions.length > 0 && (
                       <select value={productIds[t.key]} onChange={e => setProductIds(p => ({ ...p, [t.key]: e.target.value }))}
                         style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 4px", fontSize: 10.5, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}>
                         <option value="">Default rate (${(pricing || DEFAULT_PRICING)[t.baseKey]}/sq)</option>
-                        {catalog.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
+                        {shingleOptions.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
                       </select>
                     )}
-                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(grandTotal)}</div>
                     <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
                     {selectedProduct && <div style={{ fontSize: 10, color: t.color, marginTop: 6 }}>{[selectedProduct.manufacturer, selectedProduct.style, selectedProduct.color].filter(Boolean).join(" · ")}</div>}
+                    {accessoriesTotal > 0 && <div style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>{fmt(t.data.total)} shingle + {fmt(accessoriesTotal)} materials</div>}
                   </div>
                 );
               })}
             </div>
+
+            {accessories.length > 0 && (
+              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 13, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Tear-Off Materials</div>
+                <div style={{ fontSize: 11, color: MUTED, marginBottom: 12 }}>Added equally to all three tiers above. Based on {result.squares.toFixed(2)} squares.</div>
+                {accessories.map(item => {
+                  const sel = accessorySelections[item.id];
+                  const line = calcAccessoryLine(item, result.squares, sel?.qty);
+                  return (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
+                      <input type="checkbox" checked={!!sel?.checked} onChange={() => toggleAccessory(item.id)} style={{ width: 16, height: 16, cursor: "pointer" }}/>
+                      <div style={{ flex: 1, minWidth: 140, fontSize: 13, color: TEXT }}>{item.manufacturer || "(unnamed)"} <span style={{ color: MUTED, fontSize: 11 }}>— ${(parseFloat(item.pricePerUnit)||0).toLocaleString()}/{item.unit || "unit"}</span></div>
+                      {sel?.checked && item.calcMode === "manual" ? (
+                        <input type="number" min="0" placeholder="qty" value={sel?.qty || ""} onChange={e => setAccessoryQty(item.id, e.target.value)}
+                          style={{ width: 60, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 8px", fontSize: 12, fontFamily: "monospace", boxSizing: "border-box" }}/>
+                      ) : sel?.checked ? (
+                        <span style={{ fontSize: 12, color: MUTED, fontFamily: "monospace" }}>{line.qty} {item.unit || "unit"}{line.qty === 1 ? "" : "s"}</span>
+                      ) : null}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: sel?.checked ? GOLD : MUTED, fontFamily: "monospace", width: 70, textAlign: "right" }}>{sel?.checked ? fmt(line.total) : "—"}</span>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, fontWeight: 800, fontSize: 13 }}>
+                  <span>Total</span><span style={{ color: GOLD, fontFamily: "monospace" }}>{fmt(accessoriesTotal)}</span>
+                </div>
+              </div>
+            )}
           </>
         )}
 

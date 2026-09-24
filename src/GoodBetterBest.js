@@ -49,8 +49,21 @@ function fmt(n) {
 }
 
 export function catalogItemLabel(item) {
+  if (item.itemType === "accessory") {
+    return (item.manufacturer || "(unnamed product)") + ` — $${(parseFloat(item.pricePerUnit) || 0).toLocaleString()}/${item.unit || "unit"}`;
+  }
   const parts = [item.manufacturer, item.style, item.color].filter(Boolean);
   return (parts.join(" — ") || "(unnamed product)") + ` — $${(parseFloat(item.ratePerSq) || 0).toLocaleString()}/sq`;
+}
+
+// Accessory quantity + cost, given total squares and this job's selections.
+// calcMode "auto": quantity = ceil(squares / coveragePerUnit). "manual": quantity is typed in per job.
+export function calcAccessoryLine(item, squares, manualQty) {
+  const qty = item.calcMode === "manual"
+    ? (parseFloat(manualQty) || 0)
+    : Math.ceil((parseFloat(squares) || 0) / (parseFloat(item.coveragePerUnit) || 1));
+  const price = parseFloat(item.pricePerUnit) || 0;
+  return { qty, total: qty * price };
 }
 
 // ─── Materials Catalog (admin configures once, feeds Good/Better/Best) ──────
@@ -59,9 +72,13 @@ export function MaterialsCatalogSettings({ catalog, onSave, onClose }) {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const save = () => { onSave(local); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800); };
-  const addItem = () => setLocal(items => [...items, { id: Date.now() + Math.random(), manufacturer: "", style: "", color: "", ratePerSq: "" }]);
+  const addShingle = () => setLocal(items => [...items, { id: Date.now() + Math.random(), itemType: "shingle", manufacturer: "", style: "", color: "", ratePerSq: "" }]);
+  const addAccessory = () => setLocal(items => [...items, { id: Date.now() + Math.random(), itemType: "accessory", manufacturer: "", unit: "", pricePerUnit: "", calcMode: "auto", coveragePerUnit: "" }]);
   const removeItem = (id) => setLocal(items => items.filter(i => i.id !== id));
   const updateItem = (id, key, val) => setLocal(items => items.map(i => i.id === id ? { ...i, [key]: val } : i));
+
+  const shingles = local.filter(i => i.itemType !== "accessory");
+  const accessories = local.filter(i => i.itemType === "accessory");
 
   return (
     <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 300, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -79,10 +96,11 @@ export function MaterialsCatalogSettings({ catalog, onSave, onClose }) {
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 18 }}>
         <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.6 }}>
-          Real products with real $/sq rates. On any job's Good/Better/Best pricing, you can pick a specific product here for each tier instead of the flat default rate — the surcharge math (pitch, story, waste) still applies exactly like it does today.
+          Shingle products feed the Good/Better/Best tier dropdowns — pick one instead of the flat default rate, and the surcharge math (pitch, story, waste) still applies exactly like it does today. Accessories (tear-off materials) are calculated from the roof's squares and added equally to all three tiers.
         </div>
 
-        {local.map(item => (
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 13, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Shingle Products (feed Good/Better/Best)</div>
+        {shingles.map(item => (
           <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 9, padding: 10 }}>
             <input type="text" placeholder="Manufacturer (e.g. GAF)" value={item.manufacturer}
               onChange={e => updateItem(item.id, "manufacturer", e.target.value)}
@@ -103,10 +121,48 @@ export function MaterialsCatalogSettings({ catalog, onSave, onClose }) {
             <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>✕</button>
           </div>
         ))}
+        {shingles.length === 0 && <div style={{ textAlign: "center", color: MUTED, padding: "14px 0", fontSize: 12 }}>No shingle products yet.</div>}
+        <button onClick={addShingle} style={{ width: "100%", background: "none", border: `1px dashed ${BORDER}`, color: MUTED, borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 4, marginBottom: 24 }}>+ Add Shingle Product</button>
 
-        {local.length === 0 && <div style={{ textAlign: "center", color: MUTED, padding: "20px 0" }}>No products yet — add your first one below.</div>}
-
-        <button onClick={addItem} style={{ width: "100%", background: "none", border: `1px dashed ${BORDER}`, color: MUTED, borderRadius: 9, padding: "12px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}>+ Add Product</button>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 13, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Accessories (ice & water, felt, vents, drip edge, nails, etc.)</div>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+          "Auto" calculates quantity from roof squares using the coverage rate you enter (e.g. 1 roll covers 4 squares). "Manual" lets you type the quantity per job — use this for anything code-driven like vent counts.
+        </div>
+        {accessories.map(item => (
+          <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 9, padding: 10, flexWrap: "wrap" }}>
+            <input type="text" placeholder="Product (e.g. GAF FeltBuster Synthetic)" value={item.manufacturer}
+              onChange={e => updateItem(item.id, "manufacturer", e.target.value)}
+              style={{ flex: 2, minWidth: 160, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}/>
+            <input type="text" placeholder="Unit (roll, box, lb...)" value={item.unit}
+              onChange={e => updateItem(item.id, "unit", e.target.value)}
+              style={{ flex: 1, minWidth: 90, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}/>
+            <div style={{ position: "relative", flex: 0.8, minWidth: 80 }}>
+              <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: MUTED, fontSize: 13 }}>$</span>
+              <input type="number" min="0" step="0.01" placeholder="0" value={item.pricePerUnit}
+                onChange={e => updateItem(item.id, "pricePerUnit", e.target.value)}
+                style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 8px 9px 18px", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }}/>
+            </div>
+            <span style={{ color: MUTED, fontSize: 11 }}>/unit</span>
+            <select value={item.calcMode} onChange={e => updateItem(item.id, "calcMode", e.target.value)}
+              style={{ flex: 1, minWidth: 100, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 6px", fontSize: 12, fontFamily: "inherit" }}>
+              <option value="auto">Auto (per sq)</option>
+              <option value="manual">Manual qty</option>
+            </select>
+            {item.calcMode === "auto" && (
+              <>
+                <div style={{ position: "relative", flex: 0.8, minWidth: 70 }}>
+                  <input type="number" min="0" step="0.01" placeholder="0" value={item.coveragePerUnit}
+                    onChange={e => updateItem(item.id, "coveragePerUnit", e.target.value)}
+                    style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 7, color: TEXT, padding: "9px 10px", fontSize: 13, fontFamily: "monospace", boxSizing: "border-box" }}/>
+                </div>
+                <span style={{ color: MUTED, fontSize: 11 }}>sq/unit</span>
+              </>
+            )}
+            <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>✕</button>
+          </div>
+        ))}
+        {accessories.length === 0 && <div style={{ textAlign: "center", color: MUTED, padding: "14px 0", fontSize: 12 }}>No accessories yet.</div>}
+        <button onClick={addAccessory} style={{ width: "100%", background: "none", border: `1px dashed ${BORDER}`, color: MUTED, borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginTop: 4 }}>+ Add Accessory</button>
       </div>
     </div>
   );
@@ -236,6 +292,7 @@ export default function GoodBetterBest({ job, pricing, catalog, onSave, onClose,
   const [fetchInfo, setFetchInfo] = useState(null);
   const [lowConfidence, setLowConfidence] = useState(false);
   const [productIds, setProductIds] = useState(job.gbb?.productIds || { good: "", better: "", best: "" });
+  const [accessorySelections, setAccessorySelections] = useState(job.gbb?.accessorySelections || {});
 
   const findProduct = (id) => (catalog || []).find(p => String(p.id) === String(id));
   const baseOverrides = {
@@ -245,8 +302,17 @@ export default function GoodBetterBest({ job, pricing, catalog, onSave, onClose,
   };
   const result = calcGoodBetterBest({ sqFt, pitch, stories, pricing, baseOverrides });
 
+  const accessories = (catalog || []).filter(i => i.itemType === "accessory");
+  const accessoryLines = accessories
+    .filter(item => accessorySelections[item.id]?.checked)
+    .map(item => ({ item, ...calcAccessoryLine(item, result.squares, accessorySelections[item.id]?.qty) }));
+  const accessoriesTotal = accessoryLines.reduce((sum, l) => sum + l.total, 0);
+
+  const toggleAccessory = (id) => setAccessorySelections(s => ({ ...s, [id]: { ...s[id], checked: !s[id]?.checked } }));
+  const setAccessoryQty = (id, qty) => setAccessorySelections(s => ({ ...s, [id]: { ...s[id], qty } }));
+
   const save = () => {
-    onSave({ gbb: { sqFt, pitch, stories, productIds, result, calculatedAt: new Date().toISOString() } });
+    onSave({ gbb: { sqFt, pitch, stories, productIds, accessorySelections, result, accessoriesTotal, calculatedAt: new Date().toISOString() } });
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1800);
   };
@@ -352,23 +418,53 @@ export default function GoodBetterBest({ job, pricing, catalog, onSave, onClose,
                 { key: "best", baseKey: "baseBest", label: "BEST", color: GREEN, data: result.best },
               ].map(t => {
                 const selectedProduct = findProduct(productIds[t.key]);
+                const shingleOptions = (catalog || []).filter(i => i.itemType !== "accessory");
+                const grandTotal = t.data.total + accessoriesTotal;
                 return (
                   <div key={t.key} style={{ background: PANEL, border: `2px solid ${t.color}66`, borderRadius: 10, padding: 16, textAlign: "center" }}>
                     <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, letterSpacing: 1, marginBottom: 10 }}>{t.label}</div>
-                    {catalog && catalog.length > 0 && (
+                    {shingleOptions.length > 0 && (
                       <select value={productIds[t.key]} onChange={e => setProductIds(p => ({ ...p, [t.key]: e.target.value }))}
                         style={{ width: "100%", background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 4px", fontSize: 10.5, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}>
                         <option value="">Default rate (${(pricing || DEFAULT_PRICING)[t.baseKey]}/sq)</option>
-                        {catalog.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
+                        {shingleOptions.map(item => <option key={item.id} value={item.id}>{catalogItemLabel(item)}</option>)}
                       </select>
                     )}
-                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(t.data.total)}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{fmt(grandTotal)}</div>
                     <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{fmt(t.data.perSquare)}/sq</div>
                     {selectedProduct && <div style={{ fontSize: 10, color: t.color, marginTop: 6 }}>{[selectedProduct.manufacturer, selectedProduct.style, selectedProduct.color].filter(Boolean).join(" · ")}</div>}
+                    {accessoriesTotal > 0 && <div style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>{fmt(t.data.total)} shingle + {fmt(accessoriesTotal)} materials</div>}
                   </div>
                 );
               })}
             </div>
+
+            {accessories.length > 0 && (
+              <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 13, color: GOLD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Tear-Off Materials</div>
+                <div style={{ fontSize: 11, color: MUTED, marginBottom: 12 }}>Added equally to all three tiers above. Based on {result.squares.toFixed(2)} squares.</div>
+                {accessories.map(item => {
+                  const sel = accessorySelections[item.id];
+                  const line = calcAccessoryLine(item, result.squares, sel?.qty);
+                  return (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${BORDER}` }}>
+                      <input type="checkbox" checked={!!sel?.checked} onChange={() => toggleAccessory(item.id)} style={{ width: 16, height: 16, cursor: "pointer" }}/>
+                      <div style={{ flex: 1, fontSize: 13, color: TEXT }}>{item.manufacturer || "(unnamed)"} <span style={{ color: MUTED, fontSize: 11 }}>— ${(parseFloat(item.pricePerUnit)||0).toLocaleString()}/{item.unit || "unit"}</span></div>
+                      {sel?.checked && item.calcMode === "manual" ? (
+                        <input type="number" min="0" placeholder="qty" value={sel?.qty || ""} onChange={e => setAccessoryQty(item.id, e.target.value)}
+                          style={{ width: 60, background: PANEL2, border: `1px solid ${BORDER}`, borderRadius: 6, color: TEXT, padding: "6px 8px", fontSize: 12, fontFamily: "monospace", boxSizing: "border-box" }}/>
+                      ) : sel?.checked ? (
+                        <span style={{ fontSize: 12, color: MUTED, fontFamily: "monospace" }}>{line.qty} {item.unit || "unit"}{line.qty === 1 ? "" : "s"}</span>
+                      ) : null}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: sel?.checked ? GOLD : MUTED, fontFamily: "monospace", width: 70, textAlign: "right" }}>{sel?.checked ? fmt(line.total) : "—"}</span>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, fontWeight: 800, fontSize: 13 }}>
+                  <span>Total</span><span style={{ color: GOLD, fontFamily: "monospace" }}>{fmt(accessoriesTotal)}</span>
+                </div>
+              </div>
+            )}
           </>
         )}
 
