@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { apiFetch } from "./apiFetch";
 
@@ -13,6 +13,7 @@ const CAT_COLORS = { cascade: "#38bdf8", rebuttal: "#f87171", note: MUTED, suppl
 const STRENGTH_COLORS = { high: GOLD, medium: "#94a3b8", low: MUTED };
 
 const BUCKET = "scope-documents";
+const REFERENCES_ID = -3; // reserved jobs row: admin-maintained reference library
 const MAX_PDF_BYTES = 25 * 1024 * 1024; // matches the bucket's file size limit
 const BATCH_SIZE = 3; // the original app's tuned analyze batch size
 const STRENGTH_RANK = { high: 0, medium: 1, low: 2 };
@@ -95,6 +96,112 @@ function SupplementItem({ item }) {
   );
 }
 
+function Measurements({ m }) {
+  if (!m || !m.totalRoofArea) {
+    return <div style={{ ...panel, color: MUTED, fontSize: 13 }}>
+      📐 No Hover measurements on this job yet. Close this, click <b>Fetch Measurements</b> on the job page, then come back — the gap check uses them to catch under-measured items.
+    </div>;
+  }
+  const cells = [
+    ["Roof area", `${m.totalRoofArea.toLocaleString()} sq ft (${m.squares} SQ)`],
+    ["+10% waste", m.areaWithWaste?.plus10 ? `${m.areaWithWaste.plus10.toLocaleString()} sq ft` : "—"],
+    ["Pitch", (m.pitches || []).map(p => `${p.pitch} ${Math.round(p.percentage)}%`).join(", ") || m.predominantPitch || "—"],
+    ["Low slope (<4/12)", m.lowSlopeArea ? `${m.lowSlopeArea} sq ft` : "none"],
+    ["Eaves / rakes", `${m.eavesLength} / ${m.rakeLength} LF`],
+    ["Drip edge (eaves+rakes)", `${m.dripEdgeLength} LF`],
+    ["Ridges + hips", `${m.ridgeHipLength} LF`],
+    ["Valleys", `${m.valleyLength} LF`],
+    ["Step flashing", `${m.stepFlashingLength} LF`],
+  ];
+  return (
+    <div style={panel}>
+      <div style={{ ...sectionTitle, display: "flex", justifyContent: "space-between" }}>
+        <span>📐 Hover measurements</span>
+        <span style={{ color: MUTED, fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 11 }}>fetched {new Date(m.fetchedAt).toLocaleDateString()}</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+        {cells.map(([k, v]) => (
+          <div key={k} style={{ background: PANEL2, borderRadius: 7, padding: "7px 10px" }}>
+            <div style={{ color: MUTED, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{k}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GapFinding({ f }) {
+  const color = f.type === "missing" ? "#f97316" : GOLD;
+  return (
+    <div style={{ ...panel, borderLeft: `3px solid ${color}`, padding: 14, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ color: TEXT, fontSize: 13, fontWeight: 700 }}>{f.title}{f.carrierRef ? <span style={{ color: MUTED, fontWeight: 600 }}> · Line {f.carrierRef}</span> : null}</span>
+        <span style={{ display: "flex", gap: 6 }}>
+          <Badge color={STRENGTH_COLORS[f.strength] || MUTED}>{f.strength === "high" ? "HIGH LEVERAGE" : (f.strength || "medium").toUpperCase()}</Badge>
+          <Badge color={color}>{f.type === "missing" ? "MISSING" : "UNDER-MEASURED"}</Badge>
+        </span>
+      </div>
+      {(f.carrierQuantity || f.measuredQuantity) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div style={{ background: PANEL2, borderRadius: 7, padding: "7px 10px" }}><div style={{ color: MUTED, fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>Carrier</div><div style={{ fontSize: 13 }}>{f.carrierQuantity || "Not in scope"}</div></div>
+          <div style={{ background: PANEL2, borderRadius: 7, padding: "7px 10px" }}><div style={{ color: MUTED, fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>Measured</div><div style={{ fontSize: 13 }}>{f.measuredQuantity || "—"}</div></div>
+        </div>
+      )}
+      <div style={{ color: TEXT, fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{f.suggestedLineItem}</div>
+      <div style={{ color: "#b8c7d9", fontSize: 13, lineHeight: 1.5 }}>{f.justification}</div>
+      <Confidence confidence={f.confidence} detail={f.whatToConfirm} />
+    </div>
+  );
+}
+
+// Admin-maintained facts Claude may quote verbatim (manufacturer install
+// requirements, local code language...). Stored in reserved jobs row -3.
+function ReferenceLibrary({ onClose }) {
+  const [refs, setRefs] = useState(null);
+  const [status, setStatus] = useState("");
+  useEffect(() => {
+    supabase.from("jobs").select("data").eq("job_id", REFERENCES_ID).maybeSingle()
+      .then(({ data, error }) => { if (error) setStatus("Could not load: " + error.message); setRefs(data?.data?.references || []); });
+  }, []);
+  const update = (i, k, v) => setRefs(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const save = async () => {
+    setStatus("Saving…");
+    const clean = refs.map(r => ({ title: (r.title || "").trim(), source: (r.source || "").trim(), text: (r.text || "").trim() })).filter(r => r.title && r.text);
+    const { error } = await supabase.from("jobs").upsert(
+      [{ job_id: REFERENCES_ID, user_email: "config", data: { id: REFERENCES_ID, references: clean } }], { onConflict: "job_id" });
+    if (error) { setStatus("Save failed: " + error.message); return; }
+    setRefs(clean); setStatus("✓ Saved");
+    setTimeout(() => setStatus(""), 1600);
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: DARK, zIndex: 400, overflowY: "auto", color: TEXT }}>
+      <div style={{ position: "sticky", top: 0, background: PANEL2, borderBottom: `1px solid ${BORDER}`, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ fontWeight: 800 }}>📚 Reference library</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {status && <span style={{ color: status.startsWith("✓") ? GREEN : MUTED, fontSize: 12 }}>{status}</span>}
+          <button onClick={save} disabled={!refs} style={btn(TEAL)}>💾 Save</button>
+          <button onClick={onClose} style={ghostBtn}>✕ Close</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: 18 }}>
+        <div style={{ color: MUTED, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+          Facts you've verified yourself — manufacturer installation requirements, code language you've confirmed with your inspector, and so on. The gap check may quote these word-for-word (naming the title); it will not cite any code, statute, or manufacturer requirement that isn't here. Paste the exact wording and where it came from.
+        </div>
+        {refs === null ? <div style={{ color: MUTED }}>Loading…</div> : refs.map((r, i) => (
+          <div key={i} style={panel}>
+            <input value={r.title || ""} onChange={e => update(i, "title", e.target.value)} placeholder="Title, e.g. GAF Timberline HDZ — starter strip requirement" style={{ ...inputStyle, fontWeight: 700, marginBottom: 8 }} />
+            <input value={r.source || ""} onChange={e => update(i, "source", e.target.value)} placeholder="Source, e.g. GAF installation instructions, 2025 edition, p. 3" style={{ ...inputStyle, marginBottom: 8, fontSize: 13 }} />
+            <textarea value={r.text || ""} onChange={e => update(i, "text", e.target.value)} rows={3} placeholder="Exact wording…" style={{ ...inputStyle, resize: "vertical" }} />
+            <button onClick={() => setRefs(rs => rs.filter((_, j) => j !== i))} style={{ ...ghostBtn, marginTop: 8, padding: "5px 10px", fontSize: 12 }}>Remove</button>
+          </div>
+        ))}
+        {refs !== null && <button onClick={() => setRefs(rs => [...rs, { title: "", source: "", text: "" }])} style={btn(GOLD)}>+ Add reference</button>}
+      </div>
+    </div>
+  );
+}
+
 export default function ScopeReview({ job, onSave, onClose }) {
   const [reviews, setReviews] = useState(() => (Array.isArray(job.scopeReviews) ? job.scopeReviews : []));
   const [activeId, setActiveId] = useState(() => (Array.isArray(job.scopeReviews) && job.scopeReviews.length ? job.scopeReviews[job.scopeReviews.length - 1].id : null));
@@ -108,6 +215,8 @@ export default function ScopeReview({ job, onSave, onClose }) {
   const [sortMode, setSortMode] = useState("leverage");
   const [supplementNotes, setSupplementNotes] = useState("");
   const [copied, setCopied] = useState("");
+  const [fieldNotes, setFieldNotes] = useState("");
+  const [showRefs, setShowRefs] = useState(false);
 
   const review = reviews.find(r => r.id === activeId) || null;
 
@@ -134,17 +243,20 @@ export default function ScopeReview({ job, onSave, onClose }) {
     let pdfPath = null;
     setBusy("analysis");
     try {
-      let items;
+      let items, documentType;
       if (pdfFile) {
         setProgress("Uploading PDF…");
         pdfPath = `${job.id}/${reviewId}.pdf`;
         const { error: upErr } = await supabase.storage.from(BUCKET).upload(pdfPath, pdfFile, { contentType: "application/pdf" });
         if (upErr) throw new Error("PDF upload failed: " + upErr.message);
         setProgress("Reading PDF…");
-        ({ items } = await callScope(job.id, "extractPdf", { pdfPath }));
+        ({ items, documentType } = await callScope(job.id, "extractPdf", { pdfPath }));
       } else {
         setProgress("Reading line items…");
-        ({ items } = await callScope(job.id, "extract", { scopeText }));
+        ({ items, documentType } = await callScope(job.id, "extract", { scopeText }));
+      }
+      if (documentType === "coverage_summary") {
+        throw new Error("This looks like a coverage letter or payment summary (coverage totals like Dwelling, Deductible, Depreciation) — not the itemized estimate. Upload the carrier's full estimate with numbered repair line items (usually titled \"Estimate\" or \"Statement of Loss\", 5-20 pages).");
       }
       if (!items || items.length === 0) throw new Error("Couldn't find any line items in that.");
 
@@ -241,6 +353,41 @@ export default function ScopeReview({ job, onSave, onClose }) {
     } finally { setBusy(""); }
   };
 
+  const runGapCheck = async () => {
+    if (!review) return;
+    setError(""); setBusy("gap");
+    try {
+      const { findings, usedMeasurements, usedReferences } = await callScope(job.id, "gapCheck", {
+        items: review.results.map(r => ({ ref: r.ref, itemText: r.itemText })),
+        fieldNotes,
+      });
+      const check = {
+        id: newId(),
+        createdAt: new Date().toISOString(),
+        fieldNotes,
+        usedMeasurements: !!usedMeasurements,
+        usedReferences: usedReferences || [],
+        findings: (findings || []).map(f => ({
+          type: f.type === "missing" ? "missing" : "quantity",
+          title: f.title || "Finding",
+          carrierRef: f.carrierRef || "",
+          carrierQuantity: f.carrierQuantity || "",
+          measuredQuantity: f.measuredQuantity || "",
+          suggestedLineItem: f.suggestedLineItem || "",
+          justification: f.justification || "",
+          strength: ["high", "medium", "low"].includes(f.strength) ? f.strength : "medium",
+          confidence: f.confidence === "needs_info" ? "needs_info" : "confirmed",
+          whatToConfirm: f.whatToConfirm || "",
+        })).sort((a, b) => (STRENGTH_RANK[a.strength] ?? 1) - (STRENGTH_RANK[b.strength] ?? 1)),
+      };
+      const current = reviewsRef.current.find(r => r.id === review.id);
+      updateReview(review.id, { gapChecks: [...(current?.gapChecks || []), check] });
+      setFieldNotes("");
+    } catch (e) {
+      setError(e.message || "Could not run the gap check.");
+    } finally { setBusy(""); }
+  };
+
   const openOriginalPdf = async () => {
     if (!review?.source?.pdfPath) return;
     const { data, error: signErr } = await supabase.storage.from(BUCKET).createSignedUrl(review.source.pdfPath, 120);
@@ -263,6 +410,15 @@ export default function ScopeReview({ job, onSave, onClose }) {
     section("CASCADE — approved work that disturbs adjacent systems", groups.cascade, true);
     section("REBUTTAL — denied, missing, or undervalued items", groups.rebuttal, true);
     section("NOTE — routine, not in dispute", groups.note, false);
+    const lastGap = (review.gapChecks || []).at(-1);
+    if (lastGap?.findings?.length) {
+      out += "SCOPE GAPS & MEASUREMENT DISCREPANCIES (" + new Date(lastGap.createdAt).toLocaleDateString() + ")\n";
+      lastGap.findings.forEach(f => {
+        out += "  " + (f.type === "missing" ? "[MISSING] " : "[UNDER-MEASURED] ") + f.title + (f.carrierRef ? " (Line " + f.carrierRef + ")" : "") + " (" + f.strength + ")\n";
+        if (f.carrierQuantity || f.measuredQuantity) out += "  Carrier: " + (f.carrierQuantity || "not in scope") + " | Measured: " + (f.measuredQuantity || "—") + "\n";
+        out += "  Suggested: " + f.suggestedLineItem + "\n  " + f.justification + "\n\n";
+      });
+    }
     (review.supplements || []).forEach((s, i) => {
       out += `SUPPLEMENT ROUND ${i + 1} (${new Date(s.createdAt).toLocaleDateString()}) — additional items requested\n`;
       s.items.forEach(it => { out += "  " + it.itemLabel + " — " + it.suggestedLineItem + "\n  " + it.justification + "\n\n"; });
@@ -286,7 +442,10 @@ export default function ScopeReview({ job, onSave, onClose }) {
           <span style={{ color: TEAL }}>FREEDOM </span><span style={{ color: GOLD }}>EXTERIORS</span>
           <span style={{ color: MUTED, fontWeight: 500, fontSize: 13, marginLeft: 10 }}>Scope Review</span>
         </div>
-        <button onClick={onClose} disabled={working} style={{ ...ghostBtn, opacity: working ? 0.5 : 1 }}>✕ Close</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowRefs(true)} disabled={working} style={ghostBtn}>📚 References</button>
+          <button onClick={onClose} disabled={working} style={{ ...ghostBtn, opacity: working ? 0.5 : 1 }}>✕ Close</button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 760, margin: "0 auto", padding: 18 }}>
@@ -345,6 +504,7 @@ export default function ScopeReview({ job, onSave, onClose }) {
 
         {!creating && review && (
           <>
+            <Measurements m={job.hoverMeasurements} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
               {[["cascade", "Cascade"], ["rebuttal", "Rebuttal"], ["note", "Note"]].map(([k, label]) => (
                 <div key={k} style={{ ...panel, marginBottom: 0, textAlign: "center", borderTop: `3px solid ${CAT_COLORS[k]}` }}>
@@ -393,6 +553,28 @@ export default function ScopeReview({ job, onSave, onClose }) {
             </div>
             {displayResults.map((r, i) => <ResultItem key={i} item={r} />)}
 
+            <div style={{ ...panel, marginTop: 18, borderColor: "#f9731655" }}>
+              <div style={sectionTitle}>Scope gaps & measurement check</div>
+              <div style={{ color: MUTED, fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
+                Reviews the carrier's whole scope against this roof{job.hoverMeasurements?.totalRoofArea ? " and its Hover measurements" : ""}: items a complete scope needs that aren't there, and quantities lower than measured. Add anything you saw on site that the estimate can't show (layers, decking, vents, satellite dish, gutter guards…).
+              </div>
+              {(review.gapChecks || []).map((g, i, all) => (
+                <div key={g.id} style={{ marginBottom: 14, opacity: i === all.length - 1 ? 1 : 0.75 }}>
+                  <div style={{ color: MUTED, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    Check {i + 1} · {new Date(g.createdAt).toLocaleString()} · {g.usedMeasurements ? "with Hover measurements" : "no measurements"}{g.usedReferences?.length ? ` · ${g.usedReferences.length} reference${g.usedReferences.length === 1 ? "" : "s"}` : ""}
+                  </div>
+                  {g.fieldNotes && <div style={{ color: "#b8c7d9", fontSize: 12, fontStyle: "italic", marginBottom: 8, whiteSpace: "pre-wrap" }}>“{g.fieldNotes}”</div>}
+                  {g.findings.length ? g.findings.map((f, j) => <GapFinding key={j} f={f} />) : <div style={{ color: GREEN, fontSize: 13, marginBottom: 8 }}>✓ No gaps or under-measured items found.</div>}
+                </div>
+              ))}
+              <textarea value={fieldNotes} onChange={e => setFieldNotes(e.target.value)} rows={3}
+                placeholder="Optional site notes, e.g. 2 layers of shingles on the garage, soft decking at the north eave, 3 box vents + 1 power vent, satellite dish on the south slope."
+                style={{ ...inputStyle, resize: "vertical" }} />
+              <button onClick={runGapCheck} disabled={working} style={{ ...btn("#f97316", true), marginTop: 10, opacity: working ? 0.6 : 1 }}>
+                {busy === "gap" ? "Checking…" : (review.gapChecks || []).length ? "↻ Run gap check again" : "🔍 Run gap & measurement check"}
+              </button>
+            </div>
+
             <div style={{ ...panel, marginTop: 18 }}>
               <div style={sectionTitle}>Supplements</div>
               {(review.supplements || []).map((round, i) => (
@@ -429,6 +611,7 @@ export default function ScopeReview({ job, onSave, onClose }) {
           Every finding here is a starting argument for review, not a final word — confirm anything marked "needs more info" against photos, measurements, or product specs before it goes in writing. This tool does not address insurance policy language or coverage; that stays with the homeowner.
         </div>
       </div>
+      {showRefs && <ReferenceLibrary onClose={() => setShowRefs(false)} />}
     </div>
   );
 }

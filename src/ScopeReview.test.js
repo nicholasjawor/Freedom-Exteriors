@@ -6,7 +6,7 @@ import { supabase } from "./supabase";
 jest.mock("./apiFetch", () => ({ apiFetch: jest.fn() }));
 jest.mock("./supabase", () => {
   const bucket = { upload: jest.fn(), remove: jest.fn(), createSignedUrl: jest.fn() };
-  return { supabase: { storage: { from: jest.fn(() => bucket), bucket } } };
+  return { supabase: { storage: { from: jest.fn(() => bucket), bucket }, from: jest.fn() } };
 });
 
 const JOB = { id: 1782155652201, name: "Jerome Behr", claimNum: "0619-35816", address: "1 Main St", city: "Fridley", state: "MN", insurer: "State Farm" };
@@ -154,4 +154,72 @@ test("rejects non-PDF and oversized files", () => {
   Object.defineProperty(big, "size", { value: 26 * 1024 * 1024 });
   fireEvent.change(input, { target: { files: [big] } });
   expect(screen.getByText(/larger than 25MB/)).toBeInTheDocument();
+});
+
+const HOVER = { totalRoofArea: 1732, squares: 17.32, facets: 8, areaWithWaste: { plus10: 1905 }, pitches: [{ pitch: "6/12", area: 833, percentage: 48.09 }, { pitch: "2/12", area: 203, percentage: 11.72 }], lowSlopeArea: 203, eavesLength: 133.25, rakeLength: 130.92, dripEdgeLength: 264.17, ridgeHipLength: 64.92, valleyLength: 0, stepFlashingLength: 56.58, flashingLength: 4.58, fetchedAt: "2026-09-24T23:46:33.503Z" };
+const REVIEW = { id: "r1", createdAt: "2026-09-25T10:00:00Z", claimLabel: "Lawson", source: { kind: "text", text: "x" },
+  results: [{ ref: "7", itemText: "Drip edge 80 LF", category: "note", strength: "low", explanation: "e", confidence: "confirmed" }], supplements: [] };
+
+test("coverage letter is rejected with guidance, nothing saved", async () => {
+  apiFetch.mockImplementation(() => ok({ items: [{ ref: "L1", text: "Dwelling $7,349.23" }], documentType: "coverage_summary" }));
+  const saves = [];
+  render(<ScopeReview job={JOB} onSave={p => saves.push(p)} onClose={() => {}} />);
+  fireEvent.change(screen.getByPlaceholderText(/Paste the carrier's line items/), { target: { value: "Dwelling $7,349.23" } });
+  fireEvent.click(screen.getByText("Analyze scope"));
+  await screen.findByText(/looks like a coverage letter or payment summary/);
+  expect(apiFetch).toHaveBeenCalledTimes(1); // stopped before analyze
+  expect(saves).toHaveLength(0);
+});
+
+test("measurements panel shows Hover numbers; missing measurements shows a hint", () => {
+  const { unmount } = render(<ScopeReview job={{ ...JOB, hoverMeasurements: HOVER, scopeReviews: [REVIEW] }} onSave={() => {}} onClose={() => {}} />);
+  expect(screen.getByText("1,732 sq ft (17.32 SQ)")).toBeInTheDocument();
+  expect(screen.getByText("264.17 LF")).toBeInTheDocument();
+  expect(screen.getByText("203 sq ft")).toBeInTheDocument();
+  unmount();
+  render(<ScopeReview job={{ ...JOB, scopeReviews: [REVIEW] }} onSave={() => {}} onClose={() => {}} />);
+  expect(screen.getByText(/No Hover measurements on this job yet/)).toBeInTheDocument();
+});
+
+test("gap check sends items + site notes, saves findings, keeps earlier checks", async () => {
+  const calls = [];
+  apiFetch.mockImplementation((url, opts) => {
+    const body = JSON.parse(opts.body); calls.push(body);
+    return ok({ usedMeasurements: true, usedReferences: ["GAF starter"], findings: [
+      { type: "missing", title: "Starter course missing", carrierRef: "", carrierQuantity: "", measuredQuantity: "", suggestedLineItem: "Starter 133.25 LF", justification: "j1", strength: "medium", confidence: "needs_info", whatToConfirm: "Photo of eave" },
+      { type: "quantity", title: "Drip edge under-measured", carrierRef: "7", carrierQuantity: "80 LF", measuredQuantity: "133.25 + 130.92 = 264.17 LF", suggestedLineItem: "Drip edge 264.17 LF", justification: "j2", strength: "high", confidence: "confirmed", whatToConfirm: "" },
+    ] });
+  });
+  const earlier = { id: "g0", createdAt: "2026-09-24T10:00:00Z", fieldNotes: "", usedMeasurements: false, usedReferences: [], findings: [] };
+  const saves = [];
+  render(<ScopeReview job={{ ...JOB, hoverMeasurements: HOVER, scopeReviews: [{ ...REVIEW, gapChecks: [earlier] }] }} onSave={p => saves.push(p)} onClose={() => {}} />);
+  fireEvent.change(screen.getByPlaceholderText(/2 layers of shingles/), { target: { value: "2 layers on garage" } });
+  fireEvent.click(screen.getByText("↻ Run gap check again"));
+  await screen.findByText("Drip edge under-measured");
+  expect(calls[0]).toMatchObject({ mode: "gapCheck", jobId: JOB.id, payload: { items: [{ ref: "7", itemText: "Drip edge 80 LF" }], fieldNotes: "2 layers on garage" } });
+  const checks = saves.at(-1).scopeReviews[0].gapChecks;
+  expect(checks).toHaveLength(2);
+  expect(checks[1].findings.map(f => f.title)).toEqual(["Drip edge under-measured", "Starter course missing"]); // high leverage first
+  expect(checks[1].fieldNotes).toBe("2 layers on garage");
+  expect(screen.getByText("133.25 + 130.92 = 264.17 LF")).toBeInTheDocument();
+  expect(screen.getByText(/Needs more info: Photo of eave/)).toBeInTheDocument();
+});
+
+test("reference library loads and saves to reserved row -3", async () => {
+  const upsert = jest.fn().mockResolvedValue({ error: null });
+  const maybeSingle = jest.fn().mockResolvedValue({ data: { data: { references: [{ title: "Old", source: "s", text: "t" }] } }, error: null });
+  supabase.from.mockImplementation(() => ({ select: () => ({ eq: () => ({ maybeSingle }) }), upsert }));
+  render(<ScopeReview job={{ ...JOB, scopeReviews: [REVIEW] }} onSave={() => {}} onClose={() => {}} />);
+  fireEvent.click(screen.getByText("📚 References"));
+  await screen.findByDisplayValue("Old");
+  fireEvent.click(screen.getByText("+ Add reference"));
+  const titles = screen.getAllByPlaceholderText(/^Title/);
+  fireEvent.change(titles[1], { target: { value: "GAF starter" } });
+  fireEvent.change(screen.getAllByPlaceholderText("Exact wording…")[1], { target: { value: "Starter required at eaves." } });
+  fireEvent.click(screen.getByText("💾 Save"));
+  await screen.findByText("✓ Saved");
+  const [rows, opts] = upsert.mock.calls[0];
+  expect(opts).toEqual({ onConflict: "job_id" });
+  expect(rows[0]).toMatchObject({ job_id: -3, user_email: "config" });
+  expect(rows[0].data.references).toEqual([{ title: "Old", source: "s", text: "t" }, { title: "GAF starter", source: "", text: "Starter required at eaves." }]);
 });

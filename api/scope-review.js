@@ -7,6 +7,7 @@ import {
   SYSTEM_EXTRACT, SYSTEM_ANALYZE, SYSTEM_COVER_ADJUSTER, SYSTEM_COVER_HOMEOWNER,
   SYSTEM_SUPPLEMENT_ITEMS, SYSTEM_SUPPLEMENT_LETTER,
 } from "./_lib/scopeReviewPrompts.js";
+import { SYSTEM_GAP_CHECK, DOC_TYPE_NOTE } from "./_lib/scopeGapPrompt.js";
 
 const MODEL = "claude-sonnet-5";
 // Adaptive thinking shares max_tokens with the answer; the original app's
@@ -18,19 +19,20 @@ const BUCKET = "scope-documents";
 // the prompts ask for a bare array; the instruction below maps one to the other.
 const str = { type: "string" };
 const enumOf = (...values) => ({ type: "string", enum: values });
-const arrayOf = (properties) => ({
+const arrayOf = (properties, extra = {}) => ({
   type: "object",
   properties: {
     items: {
       type: "array",
       items: { type: "object", properties, required: Object.keys(properties), additionalProperties: false },
     },
+    ...extra,
   },
-  required: ["items"],
+  required: ["items", ...Object.keys(extra)],
   additionalProperties: false,
 });
 const SCHEMAS = {
-  extract: arrayOf({ ref: str, text: str }),
+  extract: arrayOf({ ref: str, text: str }, { documentType: enumOf("itemized_estimate", "coverage_summary", "other") }),
   analyze: arrayOf({
     ref: str, itemText: str, tradeCategory: str,
     category: enumOf("cascade", "rebuttal", "note"),
@@ -42,7 +44,13 @@ const SCHEMAS = {
     itemLabel: str, suggestedLineItem: str, justification: str,
     confidence: enumOf("confirmed", "needs_info"), whatToConfirm: str,
   }),
+  gapCheck: arrayOf({
+    type: enumOf("missing", "quantity"), title: str, carrierRef: str, carrierQuantity: str,
+    measuredQuantity: str, suggestedLineItem: str, justification: str,
+    strength: enumOf("high", "medium", "low"), confidence: enumOf("confirmed", "needs_info"), whatToConfirm: str,
+  }),
 };
+const REFERENCES_ID = -3; // reserved jobs row holding the admin-maintained reference library
 const WRAP_NOTE = "\n\n(Return the JSON array as the \"items\" field of a JSON object.)";
 
 let client = null;
@@ -63,7 +71,7 @@ function anthropic() {
 // One Claude call. With a schema, output is constrained to valid JSON; if the
 // API rejects the format parameter itself we retry once without it and fall
 // back to the original app's lenient parser.
-async function callClaude(system, content, schema) {
+async function callClaude(system, content, schema, { whole = false } = {}) {
   const base = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -95,7 +103,8 @@ async function callClaude(system, content, schema) {
   }
   if (!schema) return text;
   const parsed = parseJsonLoose(text);
-  return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+  const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+  return whole ? { ...(Array.isArray(parsed) ? {} : parsed), items } : items;
 }
 
 // From the original app: escape stray quote marks (usually inch marks) that
@@ -150,24 +159,24 @@ export default async function handler(req, res) {
   const { mode, jobId, payload = {} } = req.body || {};
   const jobKey = String(jobId ?? "");
   if (!/^\d+$/.test(jobKey)) return res.status(400).json({ error: "Missing job." });
-  const { data: job } = await supabaseAdmin().from("jobs").select("job_id").eq("job_id", jobKey).maybeSingle();
+  const { data: job } = await supabaseAdmin().from("jobs").select("job_id, data").eq("job_id", jobKey).maybeSingle();
   if (!job) return res.status(404).json({ error: "Job not found." });
 
   try {
     if (mode === "extract") {
       if (!payload.scopeText || !String(payload.scopeText).trim()) return res.status(400).json({ error: "No scope text provided." });
-      const items = await callClaude(SYSTEM_EXTRACT, String(payload.scopeText) + WRAP_NOTE, SCHEMAS.extract);
-      return res.status(200).json({ items });
+      const { items, documentType } = await callClaude(SYSTEM_EXTRACT, String(payload.scopeText) + WRAP_NOTE + DOC_TYPE_NOTE, SCHEMAS.extract, { whole: true });
+      return res.status(200).json({ items, documentType: documentType || "other" });
     }
 
     if (mode === "extractPdf") {
       const pdfBase64 = await loadPdfBase64(jobKey, payload.pdfPath);
       const content = [
         { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
-        { type: "text", text: "Extract the discrete billable line items from this insurance scope-of-work PDF, covering every page." + WRAP_NOTE },
+        { type: "text", text: "Extract the discrete billable line items from this insurance scope-of-work PDF, covering every page." + WRAP_NOTE + DOC_TYPE_NOTE },
       ];
-      const items = await callClaude(SYSTEM_EXTRACT, content, SCHEMAS.extract);
-      return res.status(200).json({ items });
+      const { items, documentType } = await callClaude(SYSTEM_EXTRACT, content, SCHEMAS.extract, { whole: true });
+      return res.status(200).json({ items, documentType: documentType || "other" });
     }
 
     if (mode === "analyze") {
@@ -212,6 +221,43 @@ export default async function handler(req, res) {
         ).join("\n\n");
       const text = await callClaude(SYSTEM_SUPPLEMENT_LETTER, userText, null);
       return res.status(200).json({ text });
+    }
+
+    if (mode === "gapCheck") {
+      if (!Array.isArray(payload.items) || payload.items.length === 0) return res.status(400).json({ error: "Run the analysis first — there are no carrier line items to check." });
+      const d = job.data || {};
+      const { data: refRow } = await supabaseAdmin().from("jobs").select("data").eq("job_id", REFERENCES_ID).maybeSingle();
+      const references = (refRow?.data?.references || []).filter((r) => r && r.title && r.text);
+      const m = d.hoverMeasurements;
+      const hasMeasurements = m && m.totalRoofArea;
+
+      const userText = [
+        "JOB FACTS\n" + [
+          ["State", d.state], ["Job type", d.type], ["Insurance carrier", d.insurer], ["City", d.city],
+        ].filter(([, v]) => v).map(([k, v]) => "- " + k + ": " + v).join("\n"),
+        hasMeasurements
+          ? "MEASURED ROOF DATA (Hover 3D measurement report, fetched " + (m.fetchedAt || "unknown date") + ")\n" + [
+              "- Roof area (no waste): " + m.totalRoofArea + " sq ft = " + m.squares + " SQ, " + (m.facets ?? "?") + " facets",
+              m.areaWithWaste ? "- Hover waste-adjusted areas: +5% " + m.areaWithWaste.plus5 + " sq ft, +10% " + m.areaWithWaste.plus10 + " sq ft, +15% " + m.areaWithWaste.plus15 + " sq ft, +20% " + m.areaWithWaste.plus20 + " sq ft" : null,
+              Array.isArray(m.pitches) && m.pitches.length ? "- Pitches: " + m.pitches.map((p) => p.pitch + " (" + p.area + " sq ft, " + p.percentage + "%)").join(", ") : null,
+              m.lowSlopeArea ? "- Low-slope area (under 4/12): " + m.lowSlopeArea + " sq ft" : null,
+              "- Eaves: " + m.eavesLength + " LF; Rakes: " + m.rakeLength + " LF; Eaves + rakes perimeter: " + m.dripEdgeLength + " LF",
+              "- Ridges + hips (combined): " + m.ridgeHipLength + " LF; Valleys: " + m.valleyLength + " LF",
+              "- Step flashing: " + m.stepFlashingLength + " LF; Other flashing: " + m.flashingLength + " LF",
+            ].filter(Boolean).join("\n")
+          : "MEASURED ROOF DATA\nNone available for this job. Do not make measurement-based quantity findings; mark anything that depends on measurements as needs_info.",
+        "CARRIER LINE ITEMS\n" + payload.items.map((it) => "- " + (it.ref || "?") + ": " + (it.itemText || it.text || "")).join("\n"),
+        payload.fieldNotes && String(payload.fieldNotes).trim() ? "CONTRACTOR FIELD NOTES\n" + String(payload.fieldNotes).trim() : "CONTRACTOR FIELD NOTES\nNone provided.",
+        references.length
+          ? "REFERENCE LIBRARY (verified by the contractor; you may quote these verbatim, naming the title)\n" + references.map((r) => "### " + r.title + (r.source ? " (source: " + r.source + ")" : "") + "\n" + r.text).join("\n\n")
+          : "REFERENCE LIBRARY\nEmpty. Do not cite any code, statute, or manufacturer requirement.",
+      ].join("\n\n");
+      const findings = await callClaude(SYSTEM_GAP_CHECK, userText + WRAP_NOTE, SCHEMAS.gapCheck);
+      return res.status(200).json({
+        findings,
+        usedMeasurements: !!hasMeasurements,
+        usedReferences: references.map((r) => r.title),
+      });
     }
 
     return res.status(400).json({ error: "Unknown mode: " + mode });

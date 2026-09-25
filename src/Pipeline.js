@@ -365,7 +365,9 @@ const PRICING_CONFIG_ID = -1;
 // Company-wide materials catalog (manufacturer/style/color/$-per-sq), same reserved-row
 // pattern under a second reserved job_id (-2) — keeps the single-JSONB-column architecture.
 const MATERIALS_CATALOG_ID = -2;
-const RESERVED_IDS = [PRICING_CONFIG_ID, MATERIALS_CATALOG_ID];
+// -3 holds the Scope Review reference library (read/written by ScopeReview.js).
+const SCOPE_REFERENCES_ID = -3;
+const RESERVED_IDS = [PRICING_CONFIG_ID, MATERIALS_CATALOG_ID, SCOPE_REFERENCES_ID];
 
 async function loadPricingConfig() {
   try {
@@ -512,6 +514,7 @@ export default function Pipeline({ session }) {
           if (!incoming || incoming.id == null) return;
           if (incoming.id === PRICING_CONFIG_ID) { if (incoming.pricing) setPricing(incoming.pricing); return; }
           if (incoming.id === MATERIALS_CATALOG_ID) { if (incoming.catalog) setMaterialsCatalog(incoming.catalog); return; }
+          if (RESERVED_IDS.includes(incoming.id) || incoming.id < 0) return; // config rows are never jobs
           setJobs(prev => {
             const exists = prev.some(j => j.id === incoming.id);
             return exists
