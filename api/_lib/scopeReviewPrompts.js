@@ -1,5 +1,5 @@
 // Scope Review system prompts, copied verbatim from the original standalone
-// app (scope-review-original/pages/api/analyze.js). Edit wording here only.
+// app (nicholasjawor/scope-review: pages/api/analyze.js). Edit wording here only.
 
 export const SYSTEM_EXTRACT = `You extract discrete billable line items from an insurance repair/replacement scope of work. The input may be pasted text (often copy-pasted from Xactimate or a similar estimating tool, so formatting is messy) or a PDF document.
 
