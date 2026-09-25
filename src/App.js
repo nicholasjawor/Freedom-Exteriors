@@ -3,12 +3,20 @@ import { supabase } from "./supabase";
 import Login from "./Login";
 import Pipeline from "./Pipeline";
 import Portal from "./portal";
+import SetPassword from "./SetPassword";
+
+// A password-reset email link lands on /reset-password with the recovery token
+// (or an error, e.g. an expired link) in the URL fragment.
+const RESET_PATH = "/reset-password";
+const linkParams = () => new URLSearchParams(window.location.hash.replace(/^#/, ""));
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [qbToken, setQbToken] = useState(null);
   const [qbRealm, setQbRealm] = useState(null);
+  const [recovery, setRecovery] = useState(() => window.location.pathname === RESET_PATH || linkParams().get("type") === "recovery");
+  const [resetLinkError] = useState(() => (window.location.pathname === RESET_PATH ? linkParams().get("error_description") : null));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -16,7 +24,8 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setSession(session);
     });
 
@@ -56,6 +65,14 @@ export default function App() {
       </div>
     </div>
   );
+
+  if (recovery) {
+    return <SetPassword session={session} linkError={resetLinkError} onDone={() => {
+      window.history.replaceState({}, "", "/");
+      setRecovery(false);
+      if (resetLinkError) supabase.auth.signOut();
+    }} />;
+  }
 
   return session ? <Pipeline session={session} qbToken={qbToken} qbRealm={qbRealm} /> : <Login />;
 }
